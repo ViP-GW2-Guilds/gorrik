@@ -1,0 +1,70 @@
+# Encounter names use the instance/wing name (matching arcdps Log Manager convention),
+# not the boss name. e.g. "Harvest Temple" not "The Dragonvoid",
+# "Aetherblade Hideout" not "Captain Mai Trin".
+#
+# expected_result differs from result for encounters where the parser's result
+# detection is incomplete (e.g. Harvest Temple, which uses a gadget-based phase
+# system the parser does not yet model).
+
+[[fixtures]]
+file            = "20250926-202028.zevtc"
+encounter       = "Ensolyss of the Infinite Torment"
+category        = "fractal"
+subcategory     = "Nightmare"
+result          = "success"
+expected_result = "success"
+mode            = "challenge"
+
+[[fixtures]]
+file            = "20250927-231732.zevtc"
+encounter       = "Whispering Shadow"
+category        = "fractal"
+subcategory     = "Kinfall"
+result          = "success"
+expected_result = "success"
+mode            = "quickplay"
+
+[[fixtures]]
+file            = "20260526-200101.zevtc"
+encounter       = "Harvest Temple"
+category        = "strike"
+subcategory     = "End of Dragons"
+result          = "failure"
+expected_result = "unknown"
+mode            = "normal"
+
+[[fixtures]]
+file            = "20260602-205937.zevtc"
+encounter       = "Voice of the Fallen and Claw of the Fallen"
+category        = "strike"
+subcategory     = "Icebrood Saga"
+result          = "success"
+expected_result = "success"
+mode            = "normal"
+
+[[fixtures]]
+file            = "20260604-231716.zevtc"
+encounter       = "Aetherblade Hideout"
+category        = "strike"
+subcategory     = "End of Dragons"
+result          = "success"
+expected_result = "success"
+mode            = "quickplay"
+
+[[fixtures]]
+file            = "20260605-200837.zevtc"
+encounter       = "Qadim the Peerless"
+category        = "raid"
+subcategory     = "The Key of Ahdashim (Wing 7)"
+result          = "failure"
+expected_result = "failure"
+mode            = "normal"
+
+[[fixtures]]
+file            = "20260605-211126.zevtc"
+encounter       = "Gorseval the Multifarious"
+category        = "raid"
+subcategory     = "Spirit Vale (Wing 1)"
+result          = "success"
+expected_result = "success"
+mode            = "normal"
