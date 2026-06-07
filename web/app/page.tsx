@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { db } from "@/lib/db";
 import { logs } from "@/lib/schema";
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, like } from "drizzle-orm";
 import { Filters } from "@/components/sidebar/filters";
 import { FilterBar } from "@/components/logs-table/filter-bar";
 import { LogsTable } from "@/components/logs-table/logs-table";
@@ -15,7 +15,11 @@ async function fetchLogs(filters: {
   const where = and(
     filters.category ? eq(logs.category, filters.category) : undefined,
     filters.result ? eq(logs.result, filters.result) : undefined,
-    filters.mode ? eq(logs.mode, filters.mode) : undefined
+    filters.mode
+      ? filters.mode === "emboldened"
+        ? like(logs.mode, "emboldened%")
+        : eq(logs.mode, filters.mode)
+      : undefined
   );
 
   return db.select().from(logs).where(where).orderBy(desc(logs.loggedAt));

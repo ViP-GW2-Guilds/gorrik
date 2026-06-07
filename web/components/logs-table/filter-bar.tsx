@@ -12,11 +12,7 @@ const MODES = [
   { value: "normal", label: "Normal" },
   { value: "challenge", label: "CM" },
   { value: "quickplay", label: "Quickplay" },
-  { value: "emboldened1", label: "EM1" },
-  { value: "emboldened2", label: "EM2" },
-  { value: "emboldened3", label: "EM3" },
-  { value: "emboldened4", label: "EM4" },
-  { value: "emboldened5", label: "EM5" },
+  { value: "emboldened", label: "Emboldened" },
 ];
 
 function ChipGroup({
@@ -55,8 +51,8 @@ function ChipGroup({
 }
 
 export function FilterBar() {
-  const [result, setResult] = useQueryState("result");
-  const [mode, setMode] = useQueryState("mode");
+  const [result, setResult] = useQueryState("result", { shallow: false });
+  const [mode, setMode] = useQueryState("mode", { shallow: false });
 
   return (
     <div className="flex items-center gap-6 px-4 py-2 border-b border-border flex-wrap shrink-0">
