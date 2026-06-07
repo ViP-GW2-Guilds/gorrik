@@ -115,13 +115,9 @@ func DetectArcdpsLogDir() string {
 }
 
 // Validate returns an error if cfg is missing required fields for normal operation.
+// api.url and api.key are not required here — a missing URL is handled gracefully
+// by the API client (it skips the POST with a warning until Phase 3 is deployed).
 func Validate(cfg *Config) error {
-	if cfg.API.URL == "" {
-		return fmt.Errorf("api.url is not set — run 'gorrik setup' to configure")
-	}
-	if cfg.API.Key == "" {
-		return fmt.Errorf("api.key is not set — run 'gorrik setup' to configure")
-	}
 	if cfg.Storage.R2AccountID == "" {
 		return fmt.Errorf("storage.r2_account_id is not set — run 'gorrik setup' to configure")
 	}

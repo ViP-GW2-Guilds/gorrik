@@ -57,7 +57,12 @@ type playerEntry struct {
 
 // PostLog sends parsed metadata for a single log to the API.
 // fileURL is the R2 object URL returned by the uploader.
+// If the API URL is not configured, the call is skipped with a warning.
 func (c *Client) PostLog(ctx context.Context, localPath string, meta *parser.LogMetadata, fileURL string) error {
+	if c.baseURL == "" {
+		fmt.Printf("[api] skipping POST for %s — api.url not configured\n", filepath.Base(localPath))
+		return nil
+	}
 	players := make([]playerEntry, len(meta.Players))
 	for i, p := range meta.Players {
 		players[i] = playerEntry{

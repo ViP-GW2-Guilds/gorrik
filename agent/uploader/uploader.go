@@ -3,6 +3,7 @@ package uploader
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -73,6 +74,7 @@ func (u *Uploader) Upload(ctx context.Context, localPath string) (key string, er
 		return "", fmt.Errorf("upload %s: %w", key, err)
 	}
 
+	log.Printf("uploaded %s → r2://%s/%s", key, u.bucket, key)
 	return key, nil
 }
 
