@@ -7,7 +7,10 @@ import { and, eq, isNull, or, sql, desc } from "drizzle-orm";
 export async function POST(req: NextRequest) {
   const apiKey = req.headers.get("authorization")?.replace("Bearer ", "");
   if (apiKey !== process.env.API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized", debug: process.env.API_KEY ? `key_mismatch (len=${process.env.API_KEY.length})` : "key_not_set" },
+      { status: 401 }
+    );
   }
 
   const body = await req.json();
