@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { logs } from "@/lib/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { Filters } from "@/components/sidebar/filters";
+import { FilterBar } from "@/components/logs-table/filter-bar";
 import { LogsTable } from "@/components/logs-table/logs-table";
 
 async function fetchLogs(filters: {
@@ -45,8 +46,13 @@ export default async function Page({
             <Filters />
           </Suspense>
 
-          <main className="flex-1 overflow-hidden">
-            <LogsTable logs={allLogs} />
+          <main className="flex-1 overflow-hidden flex flex-col">
+            <Suspense>
+              <FilterBar />
+            </Suspense>
+            <div className="flex-1 overflow-hidden">
+              <LogsTable logs={allLogs} />
+            </div>
           </main>
         </div>
       </div>
