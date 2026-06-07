@@ -129,7 +129,7 @@ func (w *Watcher) process(ctx context.Context, path string) error {
 // resolveLogDir returns the log directory from config or arcdps auto-detection.
 func (w *Watcher) resolveLogDir() (string, error) {
 	if w.cfg.Arcdps.LogDir != "" {
-		return w.cfg.Arcdps.LogDir, nil
+		return expandTilde(w.cfg.Arcdps.LogDir), nil
 	}
 	if w.cfg.Arcdps.AutoDetect {
 		if dir := config.DetectArcdpsLogDir(); dir != "" {
@@ -137,6 +137,18 @@ func (w *Watcher) resolveLogDir() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("could not determine log directory — set arcdps.log_dir in config or run 'gorrik setup'")
+}
+
+// expandTilde replaces a leading ~ with the current user's home directory.
+func expandTilde(path string) string {
+	if !strings.HasPrefix(path, "~") {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(home, path[1:])
 }
 
 func isLogFile(path string) bool {
