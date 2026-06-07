@@ -13,7 +13,7 @@ export function Filters() {
   const [category, setCategory] = useQueryState("category", { shallow: false });
 
   return (
-    <aside className="w-48 shrink-0 flex flex-col gap-4 p-4 border-r border-border overflow-y-auto">
+    <aside className="w-48 shrink-0 flex flex-col gap-4 p-4 border-r border-border overflow-y-auto bg-card">
       <span className="font-semibold text-sm">Category</span>
       <div className="space-y-1">
         {CATEGORIES.map((opt) => (

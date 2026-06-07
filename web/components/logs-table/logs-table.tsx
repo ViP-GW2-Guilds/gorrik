@@ -6,12 +6,19 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useRef } from "react";
+import { useRef, useState, useCallback, useEffect, Fragment } from "react";
 import { columns } from "./columns";
+import { PlayerRoster, type Player } from "./player-roster";
 import { Log } from "@/lib/schema";
+
+// Estimated heights — roster is 5 entries × ~36px + 16px padding
+const BASE_ROW_HEIGHT = 44;
+const EXPANDED_ROW_HEIGHT = 44 + 196;
 
 export function LogsTable({ logs }: { logs: Log[] }) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [playerCache, setPlayerCache] = useState<Record<string, Player[]>>({});
 
   const table = useReactTable({
     data: logs,
@@ -21,12 +28,50 @@ export function LogsTable({ logs }: { logs: Log[] }) {
 
   const { rows } = table.getRowModel();
 
+  const estimateSize = useCallback(
+    (index: number) =>
+      expanded.has(rows[index]?.original.id)
+        ? EXPANDED_ROW_HEIGHT
+        : BASE_ROW_HEIGHT,
+    [rows, expanded]
+  );
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 44,
+    estimateSize,
     overscan: 20,
   });
+
+  // Flush virtualizer size cache whenever expansion state changes
+  useEffect(() => {
+    virtualizer.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
+
+  const toggleExpand = useCallback(
+    async (logId: string) => {
+      const wasExpanded = expanded.has(logId);
+
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(logId)) next.delete(logId);
+        else next.add(logId);
+        return next;
+      });
+
+      if (!wasExpanded && !playerCache[logId]) {
+        try {
+          const res = await fetch(`/api/logs/${logId}/players`);
+          const data = await res.json();
+          setPlayerCache((prev) => ({ ...prev, [logId]: data.players }));
+        } catch {
+          // roster stays in "Loading…" state — user can collapse and retry
+        }
+      }
+    },
+    [expanded, playerCache]
+  );
 
   const virtualRows = virtualizer.getVirtualItems();
   const totalHeight = virtualizer.getTotalSize();
@@ -54,7 +99,7 @@ export function LogsTable({ logs }: { logs: Log[] }) {
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wider whitespace-nowrap"
+                  className="text-left px-3 py-2.5 font-medium text-primary/80 text-xs uppercase tracking-wider whitespace-nowrap"
                 >
                   {flexRender(header.column.columnDef.header, header.getContext())}
                 </th>
@@ -64,29 +109,39 @@ export function LogsTable({ logs }: { logs: Log[] }) {
         </thead>
         <tbody>
           {paddingTop > 0 && (
-            <tr>
-              <td style={{ height: paddingTop }} />
-            </tr>
+            <tr><td style={{ height: paddingTop }} /></tr>
           )}
           {virtualRows.map((virtualRow) => {
             const row = rows[virtualRow.index];
+            const logId = row.original.id;
+            const isExpanded = expanded.has(logId);
+
             return (
-              <tr
-                key={row.id}
-                className="border-b border-border/50 hover:bg-muted/40 transition-colors"
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-2.5 whitespace-nowrap">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
+              <Fragment key={row.id}>
+                <tr
+                  onClick={() => toggleExpand(logId)}
+                  className={`border-b border-border/50 cursor-pointer transition-colors ${
+                    isExpanded ? "bg-muted/60" : "hover:bg-muted/40"
+                  }`}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-3 py-2.5 whitespace-nowrap">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+                {isExpanded && (
+                  <tr>
+                    <td colSpan={columns.length} className="p-0">
+                      <PlayerRoster players={playerCache[logId]} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
           {paddingBottom > 0 && (
-            <tr>
-              <td style={{ height: paddingBottom }} />
-            </tr>
+            <tr><td style={{ height: paddingBottom }} /></tr>
           )}
         </tbody>
       </table>

@@ -51,11 +51,18 @@ export async function POST(req: NextRequest) {
     .onConflictDoNothing()
     .returning({ id: logs.id });
 
+  // On duplicate filename, resolve the existing log id so we can still upsert players.
+  let logId: string;
   if (inserted.length === 0) {
-    return NextResponse.json({ status: "duplicate" }, { status: 200 });
+    const [existing] = await db
+      .select({ id: logs.id })
+      .from(logs)
+      .where(eq(logs.filename, filename));
+    if (!existing) return NextResponse.json({ status: "duplicate" }, { status: 200 });
+    logId = existing.id;
+  } else {
+    logId = inserted[0].id;
   }
-
-  const logId = inserted[0].id;
 
   // Upsert accounts + characters and create log_players rows.
   for (const player of players) {
@@ -91,7 +98,9 @@ export async function POST(req: NextRequest) {
       .onConflictDoNothing();
   }
 
-  return NextResponse.json({ status: "created", id: logId }, { status: 201 });
+  const status = inserted.length > 0 ? "created" : "duplicate";
+  const httpStatus = inserted.length > 0 ? 201 : 200;
+  return NextResponse.json({ status, id: logId }, { status: httpStatus });
 }
 
 // GET /api/logs — fetch log list with optional filters
