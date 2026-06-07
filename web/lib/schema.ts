@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   primaryKey,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -40,13 +41,17 @@ export const accounts = pgTable("accounts", {
   accountName: text("account_name").notNull().unique(),
 });
 
-export const characters = pgTable("characters", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  accountId: uuid("account_id")
-    .notNull()
-    .references(() => accounts.id),
-  characterName: text("character_name").notNull(),
-});
+export const characters = pgTable(
+  "characters",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    characterName: text("character_name").notNull(),
+  },
+  (t) => [uniqueIndex("characters_account_character_idx").on(t.accountId, t.characterName)]
+);
 
 export const logPlayers = pgTable(
   "log_players",
