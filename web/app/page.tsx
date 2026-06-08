@@ -6,6 +6,7 @@ import { desc, eq, and, like } from "drizzle-orm";
 import { Filters } from "@/components/sidebar/filters";
 import { FilterBar } from "@/components/logs-table/filter-bar";
 import { LogsTable } from "@/components/logs-table/logs-table";
+import { NavTabs } from "@/components/layout/nav-tabs";
 
 async function fetchLogs(filters: {
   category?: string;
@@ -39,8 +40,9 @@ export default async function Page({
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 h-12 border-b border-border flex items-center px-4 gap-2 bg-background z-20">
           <span className="font-semibold tracking-tight">Gorrik</span>
-          <span className="text-muted-foreground text-sm">
-            — {allLogs.length.toLocaleString()} logs
+          <NavTabs />
+          <span className="ml-auto text-muted-foreground text-sm">
+            {allLogs.length.toLocaleString()} logs
           </span>
         </div>
 

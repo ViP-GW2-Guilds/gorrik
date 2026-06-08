@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { iconPath } from "@/lib/gw2";
 
 export type Player = {
   accountName: string;
@@ -8,12 +9,6 @@ export type Player = {
   profession: string;
   eliteSpec: string | null;
 };
-
-function iconPath(profession: string, eliteSpec: string | null): string {
-  const slug = (s: string) => s.toLowerCase().replace(/\s+/g, "-");
-  if (eliteSpec) return `/icons/specializations/${slug(eliteSpec)}.png`;
-  return `/icons/professions/${slug(profession)}.png`;
-}
 
 function PlayerEntry({ player }: { player: Player }) {
   return (
@@ -28,7 +23,7 @@ function PlayerEntry({ player }: { player: Player }) {
       />
       <div className="flex flex-col min-w-0">
         <span className="text-sm leading-tight truncate">{player.characterName}</span>
-        <span className="text-xs text-muted-foreground leading-tight truncate">{player.accountName}</span>
+        <span className="text-xs text-muted-foreground leading-tight truncate">{player.accountName.replace(/^:/, "")}</span>
       </div>
     </div>
   );
