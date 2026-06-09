@@ -173,7 +173,7 @@ export function EncounterTree({ mode }: { mode: "filter" | "scroll" }) {
   const hasFilter = mode === "filter" && !!(category || subcategory || encounter);
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col border-r border-border overflow-hidden bg-card">
+    <aside className="w-72 shrink-0 flex flex-col border-r border-border overflow-hidden bg-card">
       <div className="px-3 py-2 flex items-center justify-between border-b border-border shrink-0">
         <span className="font-semibold text-sm">Encounters</span>
         {hasFilter && (
