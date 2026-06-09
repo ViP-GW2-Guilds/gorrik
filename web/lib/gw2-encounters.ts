@@ -123,3 +123,67 @@ export function subcategoryIndex(sub: string): number {
 export function encounterIndex(name: string): number {
   return ENCOUNTER_ORDER[name] ?? 9999;
 }
+
+// Full static encounter tree — used to show zero-log encounters in the sidebar.
+// Keep in sync with agent/parser/encounters.go.
+export const ENCOUNTER_DATA: readonly { category: string; subcategory: string; name: string }[] = [
+  // Raids
+  { category: "raid", subcategory: "Spirit Vale (Wing 1)", name: "Vale Guardian" },
+  { category: "raid", subcategory: "Spirit Vale (Wing 1)", name: "Gorseval the Multifarious" },
+  { category: "raid", subcategory: "Spirit Vale (Wing 1)", name: "Sabetha the Saboteur" },
+  { category: "raid", subcategory: "Salvation Pass (Wing 2)", name: "Slothasor" },
+  { category: "raid", subcategory: "Salvation Pass (Wing 2)", name: "Bandit Trio" },
+  { category: "raid", subcategory: "Salvation Pass (Wing 2)", name: "Matthias Gabrel" },
+  { category: "raid", subcategory: "Stronghold of the Faithful (Wing 3)", name: "Escort" },
+  { category: "raid", subcategory: "Stronghold of the Faithful (Wing 3)", name: "Keep Construct" },
+  { category: "raid", subcategory: "Stronghold of the Faithful (Wing 3)", name: "Twisted Castle" },
+  { category: "raid", subcategory: "Stronghold of the Faithful (Wing 3)", name: "Xera" },
+  { category: "raid", subcategory: "Bastion of the Penitent (Wing 4)", name: "Cairn the Indomitable" },
+  { category: "raid", subcategory: "Bastion of the Penitent (Wing 4)", name: "Mursaat Overseer" },
+  { category: "raid", subcategory: "Bastion of the Penitent (Wing 4)", name: "Samarog" },
+  { category: "raid", subcategory: "Bastion of the Penitent (Wing 4)", name: "Deimos" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Soulless Horror" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "River of Souls" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Statues of Grenth" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Dhuum" },
+  { category: "raid", subcategory: "Mythwright Gambit (Wing 6)", name: "Conjured Amalgamate" },
+  { category: "raid", subcategory: "Mythwright Gambit (Wing 6)", name: "Twin Largos" },
+  { category: "raid", subcategory: "Mythwright Gambit (Wing 6)", name: "Qadim" },
+  { category: "raid", subcategory: "The Key of Ahdashim (Wing 7)", name: "Cardinal Adina" },
+  { category: "raid", subcategory: "The Key of Ahdashim (Wing 7)", name: "Cardinal Sabir" },
+  { category: "raid", subcategory: "The Key of Ahdashim (Wing 7)", name: "Qadim the Peerless" },
+  { category: "raid", subcategory: "Mount Balrior (Wing 8)", name: "Greer, the Blind Furor" },
+  { category: "raid", subcategory: "Mount Balrior (Wing 8)", name: "Decima, the Stormsinger" },
+  { category: "raid", subcategory: "Mount Balrior (Wing 8)", name: "Ura, the Steamshrieker" },
+  // Raid Encounters
+  { category: "strike", subcategory: "Icebrood Saga", name: "Shiverpeaks Pass" },
+  { category: "strike", subcategory: "Icebrood Saga", name: "Voice of the Fallen and Claw of the Fallen" },
+  { category: "strike", subcategory: "Icebrood Saga", name: "Fraenir of Jormag" },
+  { category: "strike", subcategory: "Icebrood Saga", name: "Boneskinner" },
+  { category: "strike", subcategory: "Icebrood Saga", name: "Whisper of Jormag" },
+  { category: "strike", subcategory: "Icebrood Saga", name: "Varinia Stormsounder" },
+  { category: "strike", subcategory: "End of Dragons", name: "Aetherblade Hideout" },
+  { category: "strike", subcategory: "End of Dragons", name: "Xunlai Jade Junkyard" },
+  { category: "strike", subcategory: "End of Dragons", name: "Kaineng Overlook" },
+  { category: "strike", subcategory: "End of Dragons", name: "Harvest Temple" },
+  { category: "strike", subcategory: "End of Dragons", name: "Old Lion's Court" },
+  { category: "strike", subcategory: "Secrets of the Obscure", name: "Cosmic Observatory" },
+  { category: "strike", subcategory: "Secrets of the Obscure", name: "Temple of Febe" },
+  { category: "strike", subcategory: "Visions of Eternity", name: "Guardian's Glade" },
+  // Fractals
+  { category: "fractal", subcategory: "Nightmare", name: "MAMA" },
+  { category: "fractal", subcategory: "Nightmare", name: "Siax the Corrupted" },
+  { category: "fractal", subcategory: "Nightmare", name: "Ensolyss of the Infinite Torment" },
+  { category: "fractal", subcategory: "Shattered Observatory", name: "Skorvald the Shattered" },
+  { category: "fractal", subcategory: "Shattered Observatory", name: "Artsariiv" },
+  { category: "fractal", subcategory: "Shattered Observatory", name: "Arkk" },
+  { category: "fractal", subcategory: "Sunqua Peak", name: "Ai, Keeper of the Peak" },
+  { category: "fractal", subcategory: "Silent Surf", name: "Kanaxai" },
+  { category: "fractal", subcategory: "Lonely Tower", name: "Eparch" },
+  { category: "fractal", subcategory: "Kinfall", name: "Whispering Shadow" },
+  // Other
+  { category: "other", subcategory: "Special Forces Training Area", name: "Standard Kitty Golem" },
+  { category: "other", subcategory: "Special Forces Training Area", name: "Medium Kitty Golem" },
+  { category: "other", subcategory: "Special Forces Training Area", name: "Large Kitty Golem" },
+  { category: "other", subcategory: "Special Forces Training Area", name: "Massive Kitty Golem" },
+];

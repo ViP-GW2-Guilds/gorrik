@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { iconPath, formatDuration } from "@/lib/gw2";
+import { iconPath, formatDuration, slugify } from "@/lib/gw2";
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
@@ -78,7 +78,7 @@ export function EncounterTable({ stats }: { stats: EncounterStat[] }) {
         );
 
         return (
-          <div key={category}>
+          <div key={category} id={`cat-${slugify(category)}`}>
             <h3 className="text-sm font-semibold text-primary mb-3">
               {CATEGORY_LABELS[category] ?? category}
             </h3>
@@ -99,7 +99,7 @@ export function EncounterTable({ stats }: { stats: EncounterStat[] }) {
                     (a, b) => encounterIndex(a.encounterName) - encounterIndex(b.encounterName)
                   );
                   return [
-                    <tr key={`sub-${subcategory}`} className="bg-muted/20">
+                    <tr key={`sub-${subcategory}`} id={`sub-${slugify(subcategory)}`} className="bg-muted/20">
                       <td
                         colSpan={6}
                         className="px-3 py-1 text-xs text-muted-foreground font-medium uppercase tracking-wider"
@@ -110,6 +110,7 @@ export function EncounterTable({ stats }: { stats: EncounterStat[] }) {
                     ...sortedEncounters.map((stat) => (
                       <tr
                         key={stat.encounterName}
+                        id={`enc-${slugify(stat.encounterName)}`}
                         className="border-b border-border/40 hover:bg-muted/30 transition-colors"
                       >
                         <td className="px-3 py-2.5 pl-5">{stat.encounterName}</td>

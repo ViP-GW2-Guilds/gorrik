@@ -30,42 +30,29 @@ The original intent was richer detail:
 This may be better suited to a dedicated character detail page/modal rather than an
 inline expansion, given the potential data density.
 
-### Hierarchical Sidebar with Log Counts
+### Hierarchical Sidebar with Log Counts ✅
 
-Replace (or evolve) the current flat category sidebar with a tree that surfaces log counts
-at every level. Inspired by the arcdps Logs Manager layout:
+Replaced the flat category sidebar on both Logs and Encounters pages with a collapsible
+encounter tree. Shows counts at every level (category → wing/area → encounter).
 
-```
-Category                                (count)
-    Raids                               (count)
-        Spirit Vale (Wing 1)            (count)
-            Vale Guardian               (count)
-            Gorseval the Multifarious   (count)
-            Sabetha the Saboteur        (count)
-        Salvation Pass (Wing 2)         (count)
-            Slothasor                   (count)
-            Bandit Trio                 (count)
-            Matthias Gabrel             (count)
-        ...
-    Raid Encounters                     (count)
-        Icebrood Saga                   (count)
-            ...
-        End of Dragons                  (count)
-            ...
-    Fractals                            (count)
-        ...
-```
+**Behaviour:**
+- Default: all nodes collapsed; all logs/encounters shown in main viewport
+- Zero-log encounters appear with `(0)` and are fully clickable
+- Expansion state persisted in `localStorage`
+- **Logs page** (`mode="filter"`): clicking any node sets URL params to filter the logs table
+  - Category → `?category=…`
+  - Subcategory → `?category=…&subcategory=…`
+  - Encounter → `?encounter=…` (clears category/subcategory since encounter is unambiguous)
+  - "Clear" button appears when any filter is active
+- **Encounters page** (`mode="scroll"`): clicking any node scrolls to that section of the table
+  - IDs on category divs, subcategory header rows, and encounter rows enable smooth scroll
 
-Benefits:
-- Gives the app much stronger navigation structure
-- Surfaces "how many logs do I have for X" at a glance without a separate stats page
-- Clicking a wing/encounter node filters the logs list to that scope (deeper than just category)
-
-Design questions to resolve:
-- Does this live on the Logs page only, or also on Encounters?
-- Collapsible tree nodes?
-- How to handle encounters the user has zero logs for (show greyed out, or hide entirely)?
-- Should clicking an encounter name deep-link to the Encounters page filtered to that encounter?
+**Implementation:**
+- `web/components/sidebar/encounter-tree.tsx` — new component (replaces `filters.tsx`)
+- `web/app/api/sidebar-counts/route.ts` — aggregates log counts from DB
+- `web/lib/gw2-encounters.ts` — added `ENCOUNTER_DATA` (full static tree for zero-log entries)
+- `web/lib/gw2.ts` — added `slugify()` shared utility
+- Both page server components updated to handle `subcategory` and `encounter` URL params
 
 ### Tags
 Schema already has `tags text[]` on the logs table. UI for viewing/filtering/editing tags

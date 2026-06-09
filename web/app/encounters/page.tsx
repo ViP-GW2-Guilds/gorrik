@@ -3,7 +3,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { NavTabs } from "@/components/layout/nav-tabs";
-import { Filters } from "@/components/sidebar/filters";
+import { EncounterTree } from "@/components/sidebar/encounter-tree";
 import { EncounterTable, type EncounterStat, type SpecEntry } from "@/components/stats/encounter-table";
 
 async function fetchEncounterStats(category?: string): Promise<EncounterStat[]> {
@@ -100,7 +100,7 @@ export default async function EncountersPage({
         {/* Body */}
         <div className="flex w-full pt-12 h-screen overflow-hidden">
           <Suspense>
-            <Filters />
+            <EncounterTree mode="scroll" />
           </Suspense>
           <main className="flex-1 overflow-y-auto">
             <div className="px-6 py-6">
