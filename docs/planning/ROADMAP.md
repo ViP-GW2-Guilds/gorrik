@@ -76,12 +76,18 @@ be run manually whenever the user wants to catch up historical logs.
 for logs previously uploaded through it. Mining those first avoids re-uploading thousands
 of files unnecessarily. Both systems key off the same base filename, so matching is trivial.
 
-- Investigate where arcdps Log Manager stores its data on Windows (likely
-  `%APPDATA%\arcdps Log Manager\` — probably SQLite or JSON)
-- Add a `gorrik import-dps-urls --from-log-manager` command (or flag on `backfill-dps`)
-  that reads the arcdps Log Manager data store, matches by filename against the Gorrik DB,
-  and PATCHes any found URLs without touching dps.report at all
+- arcdps Log Manager stores its data in `%APPDATA%\arcdps Log Manager\LogDataCache.json`
+- Format: JSON, `Version: 2`, top-level object `LogsByFilename` keyed by full Windows path
+- dps.report URL lives at `LogsByFilename[path].DpsReportEIUpload.Url` (null if not uploaded)
+- 938 logs already have URLs as of the data export
+- Some logs appear under two keys (OneDrive path + F:\ path) with identical URLs —
+  deduplicate by base filename when matching
+- Matching strategy: `filepath.Base(key)` → match against `logs.filename` in Gorrik DB
+- Add a `gorrik import-dps-urls --cache <path>` command that parses the cache file,
+  matches by base filename, and PATCHes any found URLs via the API without touching dps.report
 - Run this first, then `backfill-dps` for anything still missing
+- `Settings.json` in the same directory contains the user's `DpsReportUserToken` —
+  could optionally read it from there rather than requiring manual config
 
 #### Web UI
 - **"View" column** (far right): shows an external-link icon when `dps_report_url` is

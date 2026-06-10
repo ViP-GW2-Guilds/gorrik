@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 # Go binaries
 agent/gorrik
 agent/gorrik.exe
+
+# arcdps Log Manager data exports (contain credentials and personal data)
+docs/logs_manager_data/
