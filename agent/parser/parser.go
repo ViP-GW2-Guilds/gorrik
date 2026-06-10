@@ -98,7 +98,12 @@ type combatItem struct {
 }
 
 // Parse parses a .evtc, .evtc.zip, or .zevtc file and returns its metadata.
-func Parse(filename string) (*LogMetadata, error) {
+func Parse(filename string) (meta *LogMetadata, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("malformed file: %v", r)
+		}
+	}()
 	data, err := readRaw(filename)
 	if err != nil {
 		return nil, err
@@ -429,6 +434,9 @@ func (r *byteReader) readI64() int64 { return int64(r.readU64()) }
 
 // readAgent consumes the 96-byte evtc_agent struct.
 func (r *byteReader) readAgent() rawAgent {
+	if r.pos+96 > len(r.b) {
+		panic(fmt.Sprintf("truncated agent record at offset %d (file length %d)", r.pos, len(r.b)))
+	}
 	address := r.readU64()
 	prof := r.readU32()
 	isElite := r.readU32()

@@ -41,6 +41,48 @@ imported via `gorrik import`.
 - Run `gorrik import` against the full log directory
 - Confirm all logs are indexed in the DB and files uploaded to R2
 
+### Web: dps.report Upload Integration
+Upload selected logs to dps.report from within the Gorrik UI, store the returned permalink,
+and display it as a link on the log row.
+
+#### Schema
+- Add `dps_report_url TEXT` column to the `logs` table (nullable)
+- Generate a Drizzle migration
+
+#### API
+- Add R2 credentials to Vercel env vars (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+  `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`) so the server can fetch raw files
+- Add `POST /api/logs/[id]/dps-report` route:
+  - Fetch the raw `.zevtc` from R2 using stored `file_url`
+  - POST to `https://dps.report/uploadContent?json=1&generator=ei` as multipart form
+  - Parse the returned permalink from the JSON response
+  - Write permalink back to `logs.dps_report_url`
+  - Set `maxDuration = 60` on this route (download + upload can take 15–30s)
+- Optionally support a `dps_report_user_token` in config/env for associating uploads
+  with a dps.report account
+
+#### UI
+- **Checkbox column** (far left, no heading): visible only on rows where
+  `dps_report_url` is null; clicking a row's checkbox adds/removes it from the
+  selection set (component state — `Set<string>` of log IDs). No "select all".
+- **"View" column** (far right): visible only on rows where `dps_report_url` is set;
+  shows an external-link icon that opens the URL in a new tab. Does not interact
+  with checkbox state.
+- **"Upload to dps.report" button**: lives in the filter bar or above the table;
+  disabled until at least one checkbox is checked; shows "Upload to dps.report (N)"
+  where N is the selected count
+- **Upload progress**: button changes to "Uploading N of M…" during the operation;
+  uploads sequentially (one at a time) to respect dps.report rate limits; each
+  completed upload removes the checkbox and adds the link icon on that row without
+  a full page reload
+- Checkbox state should be preserved across sidebar filter changes but cleared on
+  page navigation
+
+#### Notes
+- The virtualized log list already handles 16k+ rows; checkbox state lives in a
+  `Set<string>` in the `LogsTable` component, separate from the virtualizer
+- No "select all" — too easy to accidentally queue thousands of uploads
+
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
 intended richer view:

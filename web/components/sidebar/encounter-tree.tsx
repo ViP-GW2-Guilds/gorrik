@@ -263,7 +263,7 @@ export function EncounterTree({ mode }: { mode: "filter" | "scroll" }) {
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
                             }`}
                           >
-                            <span className="truncate">{subNode.name}</span>
+                            <span className="truncate">{subNode.name || "Unknown"}</span>
                             <span className="shrink-0">({subNode.count})</span>
                           </button>
                         </div>

@@ -59,6 +59,15 @@ func (u *Uploader) Upload(ctx context.Context, localPath string) (key string, er
 		return key, nil
 	}
 
+	// Skip if already exists in R2 to avoid re-uploading on import restarts.
+	_, headErr := u.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(u.bucket),
+		Key:    aws.String(key),
+	})
+	if headErr == nil {
+		return key, nil
+	}
+
 	f, err := os.Open(localPath)
 	if err != nil {
 		return "", fmt.Errorf("open %s: %w", localPath, err)
