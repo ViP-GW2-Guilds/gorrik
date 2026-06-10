@@ -72,6 +72,17 @@ be run manually whenever the user wants to catch up historical logs.
 - Rate-limit deliberately (e.g. 1 upload/second) to avoid hammering dps.report
 - Safe to interrupt and re-run — already-uploaded logs are skipped
 
+**Before running backfill-dps:** arcdps Log Manager already has dps.report URLs stored
+for logs previously uploaded through it. Mining those first avoids re-uploading thousands
+of files unnecessarily. Both systems key off the same base filename, so matching is trivial.
+
+- Investigate where arcdps Log Manager stores its data on Windows (likely
+  `%APPDATA%\arcdps Log Manager\` — probably SQLite or JSON)
+- Add a `gorrik import-dps-urls --from-log-manager` command (or flag on `backfill-dps`)
+  that reads the arcdps Log Manager data store, matches by filename against the Gorrik DB,
+  and PATCHes any found URLs without touching dps.report at all
+- Run this first, then `backfill-dps` for anything still missing
+
 #### Web UI
 - **"View" column** (far right): shows an external-link icon when `dps_report_url` is
   set; opens the URL in a new tab
