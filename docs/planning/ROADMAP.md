@@ -2,6 +2,28 @@
 
 ## Active Backlog
 
+### Agent: Fix Live Watcher for Nested Log Directories
+`gorrik watch` only watches the top-level log directory (`fw.Add(logDir)` in `watcher/watcher.go`).
+arcdps saves logs in subdirectories by encounter name and then character name, e.g.
+`F:\arcdps_logs\Cairn the Indomitable\Balsamus Aran\20230707-215203.zevtc`. New logs written to
+any subdirectory will be silently missed.
+
+- Switch to recursive watching: either call `fw.Add` for every subdirectory at startup and watch
+  for new directory creation events, or use `fsnotify`'s recursive watch API if available
+- Ensure newly created subdirectories (arcdps creates them on first log for an encounter) are also
+  watched
+
+### Agent: Fix `gorrik setup` Paste Doubling on Windows
+When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
+causes each field to be doubled in the saved `gorrik.toml`. Root cause: some Windows terminals
+deliver pasted text both as a bracketed paste event and as individual keystrokes, so the
+`charmbracelet/huh` TUI receives the input twice.
+
+- Investigate whether setting a specific Windows console mode in `bubbletea` fixes it
+- Fallback option: replace the TUI wizard with plain line-input (`fmt.Scan` / `bufio.Scanner`)
+  on Windows, or add a `--no-tui` flag
+- Until fixed, workaround is to edit `%APPDATA%\gorrik\gorrik.toml` directly
+
 ### Agent: Run as Windows Service
 `gorrik watch` currently requires a terminal to stay open. It needs to run as a real Windows
 service so it starts automatically at boot and survives logouts.

@@ -3,8 +3,11 @@
 import {
   useReactTable,
   getCoreRowModel,
+  getSortedRowModel,
   flexRender,
+  type SortingState,
 } from "@tanstack/react-table";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, useCallback, useEffect, Fragment } from "react";
 import { columns } from "./columns";
@@ -19,11 +22,15 @@ export function LogsTable({ logs }: { logs: Log[] }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [playerCache, setPlayerCache] = useState<Record<string, Player[]>>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const table = useReactTable({
     data: logs,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    state: { sorting },
+    onSortingChange: setSorting,
   });
 
   const { rows } = table.getRowModel();
@@ -96,14 +103,34 @@ export function LogsTable({ logs }: { logs: Log[] }) {
         <thead className="sticky top-0 bg-background border-b border-border z-10">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="text-left px-3 py-2.5 font-medium text-primary/80 text-xs uppercase tracking-wider whitespace-nowrap"
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
+              {headerGroup.headers.map((header) => {
+                const sorted = header.column.getIsSorted();
+                const canSort = header.column.getCanSort();
+                return (
+                  <th
+                    key={header.id}
+                    onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                    className={`text-left px-3 py-2.5 font-medium text-xs uppercase tracking-wider whitespace-nowrap ${
+                      canSort
+                        ? "cursor-pointer select-none text-primary/80 hover:text-primary"
+                        : "text-primary/80"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {canSort && (
+                        sorted === "asc" ? (
+                          <ChevronUp className="w-3 h-3" />
+                        ) : sorted === "desc" ? (
+                          <ChevronDown className="w-3 h-3" />
+                        ) : (
+                          <ChevronsUpDown className="w-3 h-3 opacity-40" />
+                        )
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           ))}
         </thead>
