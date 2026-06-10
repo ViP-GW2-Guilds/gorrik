@@ -102,7 +102,10 @@ Small display improvements to the encounter stats table:
   inconsistent across encounters.
 - **Fastest column**: show the date of the fastest kill on a new line below the time
   (same treatment as the kill percentage — secondary info, visually subordinate).
-  Requires adding the `logged_at` of the fastest-kill log to the query result.
+  The current query uses `MIN(duration_ms)` which discards which log that came from.
+  Fix: use `DISTINCT ON (encounter_name) ... ORDER BY encounter_name, duration_ms ASC`
+  on the success-only rows to retrieve the full row including `logged_at`, then join
+  that back to the main aggregation.
 
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
