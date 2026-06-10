@@ -94,6 +94,16 @@ of files unnecessarily. Both systems key off the same base filename, so matching
   set; opens the URL in a new tab
 - No upload button, no checkboxes — uploads are agent-driven
 
+### Web: Encounters Page UI Polish
+Small display improvements to the encounter stats table:
+
+- **Kills column**: always render the kill percentage on its own line below the `kills / total`
+  fraction. Currently the percentage wraps or not depending on column width, which is
+  inconsistent across encounters.
+- **Fastest column**: show the date of the fastest kill on a new line below the time
+  (same treatment as the kill percentage — secondary info, visually subordinate).
+  Requires adding the `logged_at` of the fastest-kill log to the query result.
+
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
 intended richer view:
