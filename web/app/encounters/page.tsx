@@ -14,9 +14,14 @@ async function fetchEncounterStats(category?: string): Promise<EncounterStat[]> 
   const [baseResult, specResult] = await Promise.all([
     db.execute(sql`
       WITH success AS (
-        SELECT encounter_name, duration_ms
+        SELECT encounter_name, duration_ms, logged_at
         FROM logs
         WHERE result = 'success' ${ctaFilter}
+      ),
+      fastest AS (
+        SELECT DISTINCT ON (encounter_name) encounter_name, duration_ms, logged_at
+        FROM success
+        ORDER BY encounter_name, duration_ms ASC
       ),
       medians AS (
         SELECT
@@ -31,13 +36,15 @@ async function fetchEncounterStats(category?: string): Promise<EncounterStat[]> 
         l.subcategory,
         COUNT(*)::int                                                    AS total_logs,
         COUNT(*) FILTER (WHERE l.result = 'success')::int               AS kills,
-        MIN(l.duration_ms) FILTER (WHERE l.result = 'success')          AS fastest_ms,
+        f.duration_ms                                                    AS fastest_ms,
+        f.logged_at                                                      AS fastest_logged_at,
         ROUND(AVG(l.duration_ms) FILTER (WHERE l.result = 'success'))::bigint AS mean_ms,
         m.median_ms
       FROM logs l
+      LEFT JOIN fastest f ON l.encounter_name = f.encounter_name
       LEFT JOIN medians m ON l.encounter_name = m.encounter_name
       WHERE 1=1 ${outerFilter}
-      GROUP BY l.encounter_name, l.category, l.subcategory, m.median_ms
+      GROUP BY l.encounter_name, l.category, l.subcategory, f.duration_ms, f.logged_at, m.median_ms
       ORDER BY l.category, l.subcategory, l.encounter_name
     `),
     db.execute(sql`
@@ -74,6 +81,9 @@ async function fetchEncounterStats(category?: string): Promise<EncounterStat[]> 
     totalLogs: row.total_logs as number,
     kills: row.kills as number,
     fastestMs: (row.fastest_ms as number | null) ?? null,
+    fastestLoggedAt: row.fastest_logged_at
+      ? new Date(row.fastest_logged_at as string).toISOString().slice(0, 10)
+      : null,
     meanMs: (row.mean_ms as number | null) ?? null,
     medianMs: (row.median_ms as number | null) ?? null,
     topSpecs: specsByEncounter.get(row.encounter_name as string) ?? [],

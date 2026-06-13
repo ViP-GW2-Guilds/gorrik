@@ -89,7 +89,9 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		Name: "Twisted Castle", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)",
 		ResultKind: resultByReward, RewardID: 496,
 	}, 16247)
-	add(&encounterDef{Name: "Xera", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)", MainSpecies: []int{16246, 16286}}, 16246, 16286)
+	// Phase 1 Xera (16246) teleports away at 50% — she does not die. Only the phase 2
+	// form (16286) receives a ChangeDead event on a kill.
+	add(&encounterDef{Name: "Xera", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)", MainSpecies: []int{16286}}, 16246, 16286)
 
 	// Wing 4 — Bastion of the Penitent
 	add(&encounterDef{
@@ -306,14 +308,19 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 
 	cmSpeciesPresent := false
 	for _, a := range agents {
-		if !isNPC(a) {
+		// Players have isElite != 0xFFFFFFFF; skip them.
+		// NPCs and gadgets both have isElite == 0xFFFFFFFF. Some boss kill targets
+		// (e.g. Deimos ghost form, Statues of Grenth) are gadget-type agents
+		// (prof>>16 == 0xFFFF) that isNPC() excludes. Collect both for mainBossAddrs.
+		if a.isElite != 0xFFFFFFFF {
 			continue
 		}
 		speciesID := int(a.prof & 0xFFFF)
 		if _, wanted := mainBossAddrs[speciesID]; wanted {
 			mainBossAddrs[speciesID] = append(mainBossAddrs[speciesID], a.address)
 		}
-		if def.CMKind == cmBySpecies && speciesID == int(def.CMValue) {
+		// CM species detection is NPC-only; gadgets are environmental objects.
+		if isNPC(a) && def.CMKind == cmBySpecies && speciesID == int(def.CMValue) {
 			cmSpeciesPresent = true
 		}
 	}

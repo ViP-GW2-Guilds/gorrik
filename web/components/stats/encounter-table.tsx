@@ -16,6 +16,7 @@ export type EncounterStat = {
   totalLogs: number;
   kills: number;
   fastestMs: number | null;
+  fastestLoggedAt: string | null;
   meanMs: number | null;
   medianMs: number | null;
   topSpecs: SpecEntry[];
@@ -24,10 +25,10 @@ export type EncounterStat = {
 function SuccessRate({ total, kills }: { total: number; kills: number }) {
   const pct = total > 0 ? Math.round((kills / total) * 100) : 0;
   return (
-    <span>
-      {kills}/{total}{" "}
-      <span className="text-muted-foreground">({pct}%)</span>
-    </span>
+    <div>
+      <div>{kills}/{total}</div>
+      <div className="text-muted-foreground text-xs">({pct}%)</div>
+    </div>
   );
 }
 
@@ -118,7 +119,14 @@ export function EncounterTable({ stats }: { stats: EncounterStat[] }) {
                           <SuccessRate total={stat.totalLogs} kills={stat.kills} />
                         </td>
                         <td className="px-3 py-2.5 tabular-nums">
-                          {stat.fastestMs != null ? formatDuration(stat.fastestMs) : "—"}
+                          {stat.fastestMs != null ? (
+                            <div>
+                              <div>{formatDuration(stat.fastestMs)}</div>
+                              {stat.fastestLoggedAt && (
+                                <div className="text-muted-foreground text-xs">{stat.fastestLoggedAt}</div>
+                              )}
+                            </div>
+                          ) : "—"}
                         </td>
                         <td className="px-3 py-2.5 tabular-nums">
                           {stat.meanMs != null ? formatDuration(stat.meanMs) : "—"}

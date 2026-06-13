@@ -2,6 +2,63 @@
 
 ## Active Backlog
 
+### Agent: Re-import Broken Encounter Logs After Parser Fix
+The parser's result detection was wrong for four raid encounters. The code has been fixed
+(commit on `main`), but the ~2,570 already-imported records have stale results in the DB:
+
+Confirmed kill counts from arcdps Logs Manager (ground truth for verifying fixes):
+
+| Encounter | DB logs | True kills | Notes |
+|---|---|---|---|
+| Soulless Horror | 1,146 | 174 | gadget fix — verify after re-import |
+| Deimos | 720 | 237 | gadget fix — verify after re-import |
+| Xera | 290 | 141 | phase-1 fix — high confidence |
+| Kaineng Overlook | 145 | 55 | gadget fix — verify after re-import |
+| Xunlai Jade Junkyard | 141 | 55 | needs custom detection (team transformation at 50%) |
+| Guardian's Glade | 93 | 1 | gadget fix — verify after re-import |
+| Harvest Temple | 88 | 34 | currently `resultUnknown`; kills exist but need custom detection |
+| Kanaxai | 27 | 7 | gadget fix — verify after re-import |
+| Eparch | 19 | 9 | gadget fix — verify after re-import |
+
+**Statues of Grenth** (502 DB logs): arcdps Logs Manager records these as *three separate
+encounters* — Broken King, Eater of Souls, Statue of Darkness. Our current definition treats
+them as one encounter with four species as triggers, which is wrong. Needs to be split into
+three encounter entries with correct individual trigger/species IDs per sub-boss. Counts
+unknown until split.
+
+**Ai, Keeper of the Peak** (58 DB logs): arcdps Logs Manager records three variants —
+Elemental, Dark, Both Phases. Our trigger 23254 may only match one variant. Currently
+`resultUnknown` which is still correct; kill recovery requires splitting the encounter
+definition and implementing phase-based detection.
+
+**Xunlai Jade Junkyard** and **Harvest Temple** need custom detection logic —
+re-importing won't fix them. Both need their own implementation effort.
+
+**What was fixed:**
+- Xera: was requiring phase 1 form (16246) to die; it teleports away. Now only requires
+  phase 2 (16286) to die.
+- Deimos / Soulless Horror / Statues of Grenth: their kill targets are gadget-type agents
+  in the EVTC format (`prof >> 16 == 0xFFFF`). `isNPC()` was excluding them from address
+  collection, so ChangeDead events were never matched. Now both NPCs and gadgets are
+  collected for `mainBossAddrs`.
+
+**Note:** Soulless Horror and Statues of Grenth may still show 0 kills after re-import if
+the gadget fix doesn't fully cover them — in that case further investigation with kill logs
+is needed. Deimos and Xera fixes are higher confidence.
+
+**How to re-import:**
+1. Build a new Windows binary from the current `main` branch and transfer to the Windows
+   machine (see "Agent: Run as Windows Service" for cross-compile command).
+2. Connect to the Neon DB and delete the stale records:
+   ```sql
+   DELETE FROM logs
+   WHERE encounter_name IN ('Deimos', 'Xera', 'Soulless Horror', 'Statues of Grenth');
+   ```
+3. On the Windows machine, run `gorrik import` against the full log directory.
+   - R2 uploads are skipped (HeadObject check; files already uploaded).
+   - Parser re-runs on every file; only the deleted encounters get re-inserted.
+   - This is safe to interrupt and re-run.
+
 ### Agent: Fix Live Watcher for Nested Log Directories
 `gorrik watch` only watches the top-level log directory (`fw.Add(logDir)` in `watcher/watcher.go`).
 arcdps saves logs in subdirectories by encounter name and then character name, e.g.
