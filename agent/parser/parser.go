@@ -33,13 +33,19 @@ type PlayerEntry struct {
 
 // State change values from the arcdps cbtstatechange enum.
 const (
-	scNormal      uint8 = 0
-	scChangeDead  uint8 = 4
-	scLogStart    uint8 = 9
-	scLogEnd      uint8 = 10
-	scMaxHealth   uint8 = 12
-	scReward      uint8 = 17
-	scBuffInitial uint8 = 18
+	scNormal       uint8 = 0
+	scEnterCombat  uint8 = 1
+	scExitCombat   uint8 = 2
+	scChangeDead   uint8 = 4
+	scSpawn        uint8 = 6
+	scLogStart     uint8 = 9
+	scLogEnd       uint8 = 10
+	scMaxHealth    uint8 = 12
+	scReward       uint8 = 17
+	scBuffInitial  uint8 = 18
+	scTeamChange   uint8 = 22 // agent switches affiliation (e.g. boss surrenders)
+	scAttackTarget uint8 = 23 // links attack target to parent gadget
+	scTargetable   uint8 = 24 // agent becomes targetable/untargetable (dstAgent != 0 = targetable)
 )
 
 // Skill IDs used for mode detection.
@@ -180,16 +186,36 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 	// ── Encounter identification ───────────────────────────────────────────────
 	enc := lookupEncounter(triggerID, agents)
 
+	// Flat set of all main boss addresses — used to filter events to the boss only.
+	allBossAddrs := make(map[uint64]bool)
+	for _, addrs := range enc.mainBossAddrs {
+		for _, addr := range addrs {
+			allBossAddrs[addr] = true
+		}
+	}
+
 	// ── Combat event scan ─────────────────────────────────────────────────────
 	var (
 		logStartTime    int64
 		logEndTime      int64
 		logStartUnix    int32
 		bossDeaths      = make(map[uint64]bool)
+		bossTeamChanged = make(map[uint64]bool)
 		rewardID        uint64
 		emboldenedCount = make(map[uint64]int) // agent address → stack count
 		maxHealthByAddr = make(map[uint64]int64)
-		determinedSeen  bool
+		determinedOnBoss bool // Determined (895) applied to main boss (not any agent)
+
+		// For resultByAttackTargetUntargetable (e.g. Deimos):
+		// srcAgent of scAttackTarget = attack target; dstAgent = parent gadget.
+		gadgetAttackTargets             = make(map[uint64][]uint64) // gadget addr → attack target addrs
+		seenTargetable                  = make(map[uint64]bool)     // attack targets seen as targetable
+		seenUntargetableAfterTargetable = make(map[uint64]bool)     // attack targets that completed true→false
+
+		// For resultByExitCombatAfterSpawn (e.g. Xera phase 2):
+		// success when the boss exits combat ≥10 s after spawning.
+		bossSpawnTime             = make(map[uint64]int64) // boss addr → spawn event time (ms)
+		bossExitCombatAfterSpawn  = make(map[uint64]bool)  // boss addrs that satisfied the condition
 	)
 
 	hasQuickplay := skillIDs[skillQuickplayBoost] || skillIDs[skillQuickplayMoral]
@@ -213,24 +239,45 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			rewardID = item.dstAgent
 		case scChangeDead:
 			bossDeaths[item.srcAgent] = true
+		case scTeamChange:
+			bossTeamChanged[item.srcAgent] = true
 		case scMaxHealth:
 			if item.value > 0 {
 				maxHealthByAddr[item.srcAgent] = int64(item.value)
+			}
+		case scSpawn:
+			if allBossAddrs[item.srcAgent] {
+				bossSpawnTime[item.srcAgent] = item.time
+			}
+		case scExitCombat:
+			if allBossAddrs[item.srcAgent] {
+				if spawnAt, ok := bossSpawnTime[item.srcAgent]; ok && item.time-spawnAt >= 10000 {
+					bossExitCombatAfterSpawn[item.srcAgent] = true
+				}
+			}
+		case scAttackTarget:
+			// srcAgent = attack target, dstAgent = parent gadget
+			gadgetAttackTargets[item.dstAgent] = append(gadgetAttackTargets[item.dstAgent], item.srcAgent)
+		case scTargetable:
+			// dstAgent != 0 = became targetable; dstAgent == 0 = became untargetable
+			if item.dstAgent != 0 {
+				seenTargetable[item.srcAgent] = true
+			} else if seenTargetable[item.srcAgent] {
+				seenUntargetableAfterTargetable[item.srcAgent] = true
 			}
 		case scBuffInitial:
 			if hasEmboldened && item.skillID == skillEmboldened {
 				emboldenedCount[item.srcAgent]++
 			}
-			// Some encounters signal success by applying Determined (895) to the boss
-			// as a BuffInitial state change rather than a normal buff apply event.
-			if item.skillID == skillDetermined895 {
-				determinedSeen = true
-			}
+			// Intentionally not checking Determined here: evtc ignores initial buffs
+			// (AgentBuffGainedDeterminer uses ignoreInitial=true by default).
 		case scNormal:
-			// Detect Determined (895) buff apply — signals success for some encounters.
+			// Determined (895) buff applied to the boss — signals success for some encounters.
+			// Check dstAgent (recipient) against boss addresses to avoid false positives from
+			// Determined being applied to players or other agents during mechanics.
 			if item.buff != 0 && item.buffRemove == 0 && item.isActivation == 0 &&
-				item.skillID == skillDetermined895 {
-				determinedSeen = true
+				item.skillID == skillDetermined895 && allBossAddrs[item.dstAgent] {
+				determinedOnBoss = true
 			}
 		}
 	}
@@ -244,7 +291,7 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	// ── Derived fields ────────────────────────────────────────────────────────
 	mode := detectMode(enc, hasQuickplay, hasEmboldened, maxEmbStacks, maxHealthByAddr, skillIDs)
-	result := detectResult(enc, bossDeaths, rewardID, determinedSeen)
+	result := detectResult(enc, bossDeaths, bossTeamChanged, rewardID, determinedOnBoss, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn)
 
 	var duration int64
 	if logEndTime > logStartTime {
@@ -312,7 +359,15 @@ func detectMode(
 	return "normal"
 }
 
-func detectResult(enc resolvedEncounter, bossDeaths map[uint64]bool, rewardID uint64, determinedSeen bool) string {
+func detectResult(
+	enc resolvedEncounter,
+	bossDeaths, bossTeamChanged map[uint64]bool,
+	rewardID uint64,
+	determinedOnBoss bool,
+	gadgetAttackTargets map[uint64][]uint64,
+	seenUntargetableAfterTargetable map[uint64]bool,
+	bossExitCombatAfterSpawn map[uint64]bool,
+) string {
 	switch enc.resultKind {
 	case resultByReward:
 		if rewardID == enc.rewardID {
@@ -321,8 +376,52 @@ func detectResult(enc resolvedEncounter, bossDeaths map[uint64]bool, rewardID ui
 		return "failure"
 
 	case resultByBuff895:
-		if determinedSeen {
+		if determinedOnBoss {
 			return "success"
+		}
+		return "failure"
+
+	case resultByTeamChange:
+		if len(enc.mainBossAddrs) == 0 {
+			return "unknown"
+		}
+		// Success when the main boss switches affiliation (capture/surrender mechanic).
+		for _, addrs := range enc.mainBossAddrs {
+			for _, addr := range addrs {
+				if bossTeamChanged[addr] {
+					return "success"
+				}
+			}
+		}
+		return "failure"
+
+	case resultByNPCPresent:
+		if enc.npcResultPresent {
+			return "success"
+		}
+		return "failure"
+
+	case resultByExitCombatAfterSpawn:
+		// Success when the boss exits combat ≥10 s after spawning (Xera phase 2: filters
+		// out the brief combat dropout that occurs at the very start of the phase).
+		for _, addrs := range enc.mainBossAddrs {
+			for _, addr := range addrs {
+				if bossExitCombatAfterSpawn[addr] {
+					return "success"
+				}
+			}
+		}
+		return "failure"
+
+	case resultByAttackTargetUntargetable:
+		// Success when the attack target of the designated gadget goes targetable then
+		// untargetable (Deimos: gadget phase starts → attack target targetable; kill → untargetable).
+		for _, gadgetAddr := range enc.attackTargetGadgetAddrs {
+			for _, atAddr := range gadgetAttackTargets[gadgetAddr] {
+				if seenUntargetableAfterTargetable[atAddr] {
+					return "success"
+				}
+			}
 		}
 		return "failure"
 

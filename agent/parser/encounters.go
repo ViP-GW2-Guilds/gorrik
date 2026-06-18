@@ -3,10 +3,14 @@ package parser
 type resultKind int
 
 const (
-	resultByDeath   resultKind = iota // all mainSpecies addresses must receive a ChangeDead event
-	resultByReward                    // a Reward event with a matching rewardID must appear
-	resultByBuff895                   // skill 895 (Determined) buff apply must appear
-	resultUnknown                     // parser cannot detect result for this encounter
+	resultByDeath                    resultKind = iota // all mainSpecies addresses must receive a ChangeDead event
+	resultByReward                                     // a Reward event with a matching rewardID must appear
+	resultByBuff895                                    // skill 895 (Determined) applied to the boss
+	resultByTeamChange                                 // main boss's team changes (surrender/capture mechanic)
+	resultByAttackTargetUntargetable                   // attack target of AttackTargetGadgetSpecies goes targetable→untargetable
+	resultByExitCombatAfterSpawn                       // boss exits combat ≥10 s after spawning
+	resultByNPCPresent                                 // a specific NPC species appears in the agent list
+	resultUnknown                                      // parser cannot detect result for this encounter
 )
 
 type cmKind int
@@ -31,6 +35,13 @@ type encounterDef struct {
 	ResultKind resultKind
 	RewardID   uint64 // for resultByReward
 
+	// For resultByAttackTargetUntargetable: the gadget species whose attack target
+	// going targetable→untargetable signals a successful kill (e.g. Deimos = 24660).
+	AttackTargetGadgetSpecies int
+
+	// For resultByNPCPresent: success if this NPC species appears in the agent list.
+	ResultNPCSpecies int
+
 	CMKind  cmKind
 	CMValue int64 // health threshold (cmByHealth), skill ID (cmBySkill), or species ID (cmBySpecies)
 }
@@ -49,6 +60,13 @@ type resolvedEncounter struct {
 	cmKind           cmKind
 	cmValue          int64
 	cmSpeciesPresent bool // set for cmBySpecies encounters when the CM NPC was found
+
+	// attackTargetGadgetAddrs holds addresses of gadget agents whose attack target
+	// going targetable→untargetable signals success (resultByAttackTargetUntargetable).
+	attackTargetGadgetAddrs []uint64
+
+	// npcResultPresent is true when the ResultNPCSpecies NPC was found in the agent list.
+	npcResultPresent bool
 }
 
 var encountersByTriggerID = buildEncounterTable()
@@ -89,9 +107,10 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		Name: "Twisted Castle", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)",
 		ResultKind: resultByReward, RewardID: 496,
 	}, 16247)
-	// Phase 1 Xera (16246) teleports away at 50% — she does not die. Only the phase 2
-	// form (16286) receives a ChangeDead event on a kill.
-	add(&encounterDef{Name: "Xera", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)", MainSpecies: []int{16286}}, 16246, 16286)
+	// Phase 1 Xera (16246) teleports away at 50% and is replaced by phase 2 (16286).
+	// Phase 2 Xera briefly drops out of combat at the start of the phase; the kill is
+	// detected by her exiting combat ≥10 s after spawning (matching evtc's AgentCombatExitDeterminer).
+	add(&encounterDef{Name: "Xera", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)", MainSpecies: []int{16286}, ResultKind: resultByExitCombatAfterSpawn}, 16246, 16286)
 
 	// Wing 4 — Bastion of the Penitent
 	add(&encounterDef{
@@ -109,10 +128,14 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		MainSpecies: []int{17188},
 		CMKind:      cmByHealth, CMValue: 39_000_000,
 	}, 17188)
+	// Deimos (NPC 17154) transforms into a gadget (species 24660) at 10% HP and never emits
+	// ChangeDead. Success is detected by the gadget's attack target going targetable (phase
+	// begins) then untargetable (kill).
 	add(&encounterDef{
 		Name: "Deimos", Category: "raid", Subcategory: "Bastion of the Penitent (Wing 4)",
-		MainSpecies: []int{17154},
-		CMKind:      cmByHealth, CMValue: 42_000_000,
+		ResultKind:                resultByAttackTargetUntargetable,
+		AttackTargetGadgetSpecies: 24660,
+		CMKind:                    cmByHealth, CMValue: 42_000_000,
 	}, 17154)
 
 	// Wing 5 — Hall of Chains
@@ -122,17 +145,21 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		Name: "River of Souls", Category: "raid", Subcategory: "Hall of Chains (Wing 5)",
 		ResultKind: resultUnknown, // Desmina does not die; reward-based but no fixed reward ID
 	}, 19828)
-	add(&encounterDef{
-		Name: "Statues of Grenth", Category: "raid", Subcategory: "Hall of Chains (Wing 5)",
-		MainSpecies: []int{19651, 19844, 19691, 19536},
-	}, 19651, 19844, 19691, 19536)
+	// "Statues of Grenth" is actually three separate encounters in arcdps logs.
+	// Eyes of Fate: arcdps logs the Eye that was the primary trigger; only that Eye needs to die.
+	add(&encounterDef{Name: "Eyes of Fate", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19651}}, 19651)
+	add(&encounterDef{Name: "Eyes of Fate", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19844}}, 19844)
+	add(&encounterDef{Name: "Broken King", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19691}}, 19691)
+	add(&encounterDef{Name: "Eater of Souls", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19536}}, 19536)
 	add(&encounterDef{Name: "Dhuum", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19450}}, 19450)
 
 	// Wing 6 — Mythwright Gambit
+	// Trigger is the ConjuredAmalgamate gadget (43974). Success = RoleplayZommoros (21118) spawns.
 	add(&encounterDef{
 		Name: "Conjured Amalgamate", Category: "raid", Subcategory: "Mythwright Gambit (Wing 6)",
-		ResultKind: resultUnknown, // gadget-based; complex detection
-	}, 21255, 21118)
+		ResultKind:       resultByNPCPresent,
+		ResultNPCSpecies: 21118,
+	}, 43974)
 	add(&encounterDef{
 		Name: "Twin Largos", Category: "raid", Subcategory: "Mythwright Gambit (Wing 6)",
 		MainSpecies: []int{21105, 21089},
@@ -184,15 +211,18 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		ResultKind:  resultByBuff895,
 		CMKind:      cmByHealth, CMValue: 8_000_000,
 	}, 24033)
+	// Xunlai Jade Junkyard and Kaineng Overlook: boss surrenders at ~50% HP via a team-change
+	// event rather than dying (ChangeDead never fires).
 	add(&encounterDef{
 		Name: "Xunlai Jade Junkyard", Category: "strike", Subcategory: "End of Dragons",
 		MainSpecies: []int{23957},
+		ResultKind:  resultByTeamChange,
 		CMKind:      cmByHealth, CMValue: 45_000_000,
-		// Result: team change below 50% health — not yet implemented; falls through to resultByDeath (imprecise)
 	}, 23957)
 	add(&encounterDef{
 		Name: "Kaineng Overlook", Category: "strike", Subcategory: "End of Dragons",
 		MainSpecies: []int{24485},
+		ResultKind:  resultByTeamChange,
 		CMKind:      cmByHealth, CMValue: 30_000_000,
 		// MinisterLiChallengeMode (24266) can also be the trigger ID
 	}, 24485, 24266)
@@ -253,9 +283,11 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25577}, ResultKind: resultByBuff895, CMKind: cmAlways}, 25577)
 
 	// Lonely Tower
+	// Eparch applies Determined (895) on successful defeat rather than emitting ChangeDead.
 	add(&encounterDef{
 		Name: "Eparch", Category: "fractal", Subcategory: "Lonely Tower",
 		MainSpecies: []int{26231},
+		ResultKind:  resultByBuff895,
 		CMKind:      cmByHealth, CMValue: 21_000_000,
 	}, 26231)
 
@@ -310,6 +342,8 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 	}
 
 	cmSpeciesPresent := false
+	npcResultPresent := false
+	var attackTargetGadgetAddrs []uint64
 	for _, a := range agents {
 		// Players have isElite != 0xFFFFFFFF; skip them.
 		// NPCs and gadgets both have isElite == 0xFFFFFFFF. Some boss kill targets
@@ -326,18 +360,28 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 		if isNPC(a) && def.CMKind == cmBySpecies && speciesID == int(def.CMValue) {
 			cmSpeciesPresent = true
 		}
+		// Collect gadget addresses for resultByAttackTargetUntargetable.
+		if def.AttackTargetGadgetSpecies != 0 && !isNPC(a) && speciesID == def.AttackTargetGadgetSpecies {
+			attackTargetGadgetAddrs = append(attackTargetGadgetAddrs, a.address)
+		}
+		// Check for resultByNPCPresent: success NPC appears in agent list.
+		if def.ResultNPCSpecies != 0 && isNPC(a) && speciesID == def.ResultNPCSpecies {
+			npcResultPresent = true
+		}
 	}
 
 	return resolvedEncounter{
-		Name:             def.Name,
-		Category:         def.Category,
-		Subcategory:      def.Subcategory,
-		mainBossAddrs:    mainBossAddrs,
-		resultKind:       def.ResultKind,
-		rewardID:         def.RewardID,
-		cmKind:           def.CMKind,
-		cmValue:          def.CMValue,
-		cmSpeciesPresent: cmSpeciesPresent,
+		Name:                    def.Name,
+		Category:                def.Category,
+		Subcategory:             def.Subcategory,
+		mainBossAddrs:           mainBossAddrs,
+		resultKind:              def.ResultKind,
+		rewardID:                def.RewardID,
+		cmKind:                  def.CMKind,
+		cmValue:                 def.CMValue,
+		cmSpeciesPresent:        cmSpeciesPresent,
+		attackTargetGadgetAddrs: attackTargetGadgetAddrs,
+		npcResultPresent:        npcResultPresent,
 	}
 }
 

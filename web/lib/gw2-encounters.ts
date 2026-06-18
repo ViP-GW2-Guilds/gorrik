@@ -51,8 +51,10 @@ export const ENCOUNTER_ORDER: Readonly<Record<string, number>> = {
   // Hall of Chains (Wing 5)
   "Soulless Horror": 40,
   "River of Souls": 41,
-  "Statues of Grenth": 42,
-  Dhuum: 43,
+  "Eater of Souls": 42,
+  "Eyes of Fate": 43,
+  "Broken King": 44,
+  Dhuum: 45,
   // Mythwright Gambit (Wing 6)
   "Conjured Amalgamate": 50,
   "Twin Largos": 51,
@@ -144,7 +146,9 @@ export const ENCOUNTER_DATA: readonly { category: string; subcategory: string; n
   { category: "raid", subcategory: "Bastion of the Penitent (Wing 4)", name: "Deimos" },
   { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Soulless Horror" },
   { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "River of Souls" },
-  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Statues of Grenth" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Eyes of Fate" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Broken King" },
+  { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Eater of Souls" },
   { category: "raid", subcategory: "Hall of Chains (Wing 5)", name: "Dhuum" },
   { category: "raid", subcategory: "Mythwright Gambit (Wing 6)", name: "Conjured Amalgamate" },
   { category: "raid", subcategory: "Mythwright Gambit (Wing 6)", name: "Twin Largos" },
