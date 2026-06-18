@@ -1,6 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Log } from "@/lib/schema";
 
@@ -94,5 +95,25 @@ export const columns: ColumnDef<Log>[] = [
         {formatDate(row.original.loggedAt)}
       </span>
     ),
+  },
+  {
+    id: "view",
+    header: "",
+    cell: ({ row }) => {
+      const url = row.original.dpsReportUrl;
+      if (!url) return null;
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          title="View on dps.report"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      );
+    },
   },
 ];
