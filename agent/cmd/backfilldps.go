@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,14 +20,17 @@ import (
 var (
 	backfillDir    string
 	backfillDryRun bool
+	backfillRate   float64
 )
 
 var backfillDpsCmd = &cobra.Command{
 	Use:   "backfill-dps",
 	Short: "Upload logs missing a dps.report URL",
 	Long: `Walks the local log directory and uploads to dps.report any log that
-is in the database but has no dps_report_url set. Rate-limited to one
-upload per second. Safe to interrupt and re-run.
+is in the database but has no dps_report_url set. Safe to interrupt and re-run.
+
+HTTP 429 responses are handled automatically: the command waits for the
+duration specified in the Retry-After header before retrying (up to 3 times).
 
 Run 'gorrik import-dps-urls' first to populate URLs from the arcdps
 Log Manager cache without re-uploading files.`,
@@ -36,9 +40,15 @@ Log Manager cache without re-uploading files.`,
 func init() {
 	backfillDpsCmd.Flags().StringVar(&backfillDir, "dir", "", "log directory (defaults to arcdps log directory from config)")
 	backfillDpsCmd.Flags().BoolVar(&backfillDryRun, "dry-run", false, "show what would be uploaded without actually uploading")
+	backfillDpsCmd.Flags().Float64Var(&backfillRate, "rate", 1.0, "max uploads per second (e.g. 0.5 = one every two seconds)")
 }
 
 func runBackfillDps(cmd *cobra.Command, args []string) error {
+	if backfillRate <= 0 {
+		return fmt.Errorf("--rate must be greater than zero")
+	}
+	sleepBetween := time.Duration(float64(time.Second) / backfillRate)
+
 	dir := backfillDir
 	if dir == "" {
 		if cfg.Arcdps.LogDir != "" {
@@ -97,7 +107,8 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	log.Printf("%d local files matched; uploading at 1/s", len(toUpload))
+	log.Printf("%d local files matched; uploading at %g/s (%s between uploads)",
+		len(toUpload), backfillRate, sleepBetween)
 
 	dpsClient := dpsreport.New(cfg.Behaviour.DpsReportUserToken)
 
@@ -119,7 +130,7 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Printf("upload failed for %s: %v", base, err)
 			failed++
-			time.Sleep(time.Second)
+			time.Sleep(sleepBetween)
 			continue
 		}
 
@@ -131,15 +142,14 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 			uploaded++
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(sleepBetween)
 	}
 
 	log.Printf("done: %d uploaded, %d skipped, %d failed", uploaded, skipped, failed)
 	return nil
 }
 
-// isLogFile is defined in watcher.go but we need it here too; delegate via watcher.
-// Duplicating the small check to avoid coupling cmd → watcher internals.
+// isLogFile is duplicated from watcher to avoid coupling cmd → watcher internals.
 func isLogFile(path string) bool {
 	lower := strings.ToLower(path)
 	return strings.HasSuffix(lower, ".evtc") ||
