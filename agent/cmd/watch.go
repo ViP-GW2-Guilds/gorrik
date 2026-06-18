@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/api"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/config"
+	"github.com/ViP-GW2-Guilds/gorrik/agent/dpsreport"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/uploader"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/watcher"
 )
@@ -41,8 +42,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("uploader: %w", err)
 	}
 
+	var dpsClient *dpsreport.Client
+	if cfg.Behaviour.UploadToDpsReport && !watchDryRun {
+		dpsClient = dpsreport.New(cfg.Behaviour.DpsReportUserToken)
+	}
+
 	apiClient := api.New(cfg, watchDryRun)
-	w := watcher.New(cfg, up, apiClient, watchDryRun)
+	w := watcher.New(cfg, up, apiClient, dpsClient, watchDryRun)
 
 	// If running as a Windows service, hand control to the service manager.
 	// Otherwise run in the foreground with signal handling.

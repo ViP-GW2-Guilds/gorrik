@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     duration_ms,
     logged_at,
     file_url,
+    dps_report_url,
     players = [],
   } = body;
 
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
       durationMs: duration_ms,
       loggedAt: new Date(logged_at),
       fileUrl: file_url,
+      dpsReportUrl: dps_report_url ?? null,
     })
     .onConflictDoNothing()
     .returning({ id: logs.id });
@@ -109,13 +111,15 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get("category");
   const result = searchParams.get("result");
   const mode = searchParams.get("mode");
+  const missingDps = searchParams.get("missing_dps") === "1" || searchParams.get("missing_dps") === "true";
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "100"), 500);
   const offset = parseInt(searchParams.get("offset") ?? "0");
 
   const where = and(
     category ? eq(logs.category, category) : undefined,
     result ? eq(logs.result, result) : undefined,
-    mode ? eq(logs.mode, mode) : undefined
+    mode ? eq(logs.mode, mode) : undefined,
+    missingDps ? isNull(logs.dpsReportUrl) : undefined,
   );
 
   const [rows, [{ count }]] = await Promise.all([
@@ -132,6 +136,7 @@ export async function GET(req: NextRequest) {
         loggedAt: logs.loggedAt,
         fileUrl: logs.fileUrl,
         isFavorite: logs.isFavorite,
+        dpsReportUrl: logs.dpsReportUrl,
       })
       .from(logs)
       .where(where)

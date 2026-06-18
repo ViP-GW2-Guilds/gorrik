@@ -38,6 +38,8 @@ func init() {
 	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(importCmd)
 	rootCmd.AddCommand(serviceCmd)
+	rootCmd.AddCommand(backfillDpsCmd)
+	rootCmd.AddCommand(importDpsUrlsCmd)
 }
 
 func loadConfig() {

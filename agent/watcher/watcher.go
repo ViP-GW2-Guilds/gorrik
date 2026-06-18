@@ -13,28 +13,31 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/api"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/config"
+	"github.com/ViP-GW2-Guilds/gorrik/agent/dpsreport"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/parser"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/uploader"
 )
 
 // Watcher monitors a directory for new EVTC log files and processes them.
 type Watcher struct {
-	cfg    *config.Config
-	up     *uploader.Uploader
-	client *api.Client
-	dryRun bool
-	done   chan struct{}
-	once   sync.Once
+	cfg       *config.Config
+	up        *uploader.Uploader
+	client    *api.Client
+	dpsClient *dpsreport.Client // nil disables dps.report upload
+	dryRun    bool
+	done      chan struct{}
+	once      sync.Once
 }
 
-// New creates a Watcher.
-func New(cfg *config.Config, up *uploader.Uploader, client *api.Client, dryRun bool) *Watcher {
+// New creates a Watcher. dpsClient may be nil to disable dps.report uploads.
+func New(cfg *config.Config, up *uploader.Uploader, client *api.Client, dpsClient *dpsreport.Client, dryRun bool) *Watcher {
 	return &Watcher{
-		cfg:    cfg,
-		up:     up,
-		client: client,
-		dryRun: dryRun,
-		done:   make(chan struct{}),
+		cfg:       cfg,
+		up:        up,
+		client:    client,
+		dpsClient: dpsClient,
+		dryRun:    dryRun,
+		done:      make(chan struct{}),
 	}
 }
 
@@ -92,7 +95,7 @@ func (w *Watcher) processFile(ctx context.Context, path string) {
 	}
 }
 
-// process runs the full pipeline (parse → upload → API POST) for one file.
+// process runs the full pipeline (parse → R2 upload → dps.report upload → API POST) for one file.
 func (w *Watcher) process(ctx context.Context, path string) error {
 	log.Printf("processing %s", filepath.Base(path))
 
@@ -111,7 +114,18 @@ func (w *Watcher) process(ctx context.Context, path string) error {
 		fileURL = "dry-run://" + key
 	}
 
-	if err := w.client.PostLog(ctx, path, meta, fileURL); err != nil {
+	var dpsURL string
+	if w.dpsClient != nil && !w.dryRun {
+		permalink, err := w.dpsClient.Upload(ctx, path)
+		if err != nil {
+			log.Printf("warning: dps.report upload failed for %s: %v", filepath.Base(path), err)
+		} else {
+			dpsURL = permalink
+			log.Printf("dps.report: %s → %s", filepath.Base(path), permalink)
+		}
+	}
+
+	if err := w.client.PostLog(ctx, path, meta, fileURL, dpsURL); err != nil {
 		return fmt.Errorf("api post: %w", err)
 	}
 
@@ -159,9 +173,10 @@ func isLogFile(path string) bool {
 }
 
 // BulkImport processes all existing log files in dir using up to workers
-// goroutines. Progress and errors are written to the standard logger.
+// goroutines. dps.report uploads are intentionally skipped — use gorrik backfill-dps
+// for historical logs.
 func BulkImport(ctx context.Context, dir string, workers int, cfg *config.Config, up *uploader.Uploader, client *api.Client, dryRun bool) error {
-	w := New(cfg, up, client, dryRun)
+	w := New(cfg, up, client, nil, dryRun)
 
 	var files []string
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {

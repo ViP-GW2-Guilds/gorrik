@@ -35,7 +35,9 @@ type StorageConfig struct {
 }
 
 type BehaviourConfig struct {
-	DeleteAfterUpload bool `toml:"delete_after_upload"`
+	DeleteAfterUpload  bool   `toml:"delete_after_upload"`
+	UploadToDpsReport  bool   `toml:"upload_to_dps_report"`
+	DpsReportUserToken string `toml:"dps_report_user_token"`
 }
 
 // Defaults returns a Config with sensible defaults.
