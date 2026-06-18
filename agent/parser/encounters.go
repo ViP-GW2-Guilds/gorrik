@@ -116,7 +116,8 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 17154)
 
 	// Wing 5 — Hall of Chains
-	add(&encounterDef{Name: "Soulless Horror", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19767}}, 19767)
+	// Soulless Horror signals success by applying Determined (895) to itself, not via ChangeDead.
+	add(&encounterDef{Name: "Soulless Horror", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19767}, ResultKind: resultByBuff895}, 19767)
 	add(&encounterDef{
 		Name: "River of Souls", Category: "raid", Subcategory: "Hall of Chains (Wing 5)",
 		ResultKind: resultUnknown, // Desmina does not die; reward-based but no fixed reward ID
@@ -217,9 +218,10 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 25989)
 
 	// Visions of Eternity
+	// Guardian's Glade signals success via Determined (895), not ChangeDead.
 	add(&encounterDef{
 		Name: "Guardian's Glade", Category: "strike", Subcategory: "Visions of Eternity",
-		MainSpecies: []int{27124},
+		MainSpecies: []int{27124}, ResultKind: resultByBuff895,
 	}, 27124)
 
 	// ── Fractals ───────────────────────────────────────────────────────────────
@@ -246,8 +248,9 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 23254)
 
 	// Silent Surf
-	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25572}, CMKind: cmNone}, 25572)
-	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25577}, CMKind: cmAlways}, 25577)
+	// Kanaxai signals success via Determined (895), not ChangeDead.
+	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25572}, ResultKind: resultByBuff895, CMKind: cmNone}, 25572)
+	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25577}, ResultKind: resultByBuff895, CMKind: cmAlways}, 25577)
 
 	// Lonely Tower
 	add(&encounterDef{
