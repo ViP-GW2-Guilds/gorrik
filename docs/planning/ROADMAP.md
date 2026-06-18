@@ -185,10 +185,6 @@ The `logs` table already has a `tags text[]` column. Nothing has been built yet:
 
 ## Deferred
 
-### Web: dps.report Integration
-Trigger a dps.report upload from within the Gorrik UI and store the permalink on the log
-record. Lets users jump straight to full combat analysis from the log list.
-
 ### GW2 API Integration
 Pull guild data, member lists, and character names via the GW2 API. Prerequisite for the
 Guilds tab and for enriching player profiles with guild tags.
