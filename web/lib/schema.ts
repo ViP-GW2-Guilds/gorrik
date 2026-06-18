@@ -34,6 +34,7 @@ export const logs = pgTable("logs", {
   fileUrl: text("file_url").notNull(),
   isFavorite: boolean("is_favorite").notNull().default(false),
   tags: text("tags").array().default(sql`'{}'`),
+  dpsReportUrl: text("dps_report_url"),
 });
 
 export const accounts = pgTable("accounts", {
