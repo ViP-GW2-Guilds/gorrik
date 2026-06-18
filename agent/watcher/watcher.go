@@ -54,11 +54,14 @@ func (w *Watcher) Run(ctx context.Context) error {
 	}
 	defer fw.Close()
 
-	if err := fw.Add(logDir); err != nil {
+	// Watch the root dir and every existing subdirectory. arcdps organises logs
+	// as <logDir>/<encounter>/<character>/<timestamp>.zevtc, so a flat fw.Add
+	// on logDir alone would miss everything.
+	n, err := addDirsRecursive(fw, logDir)
+	if err != nil {
 		return fmt.Errorf("watch %s: %w", logDir, err)
 	}
-
-	log.Printf("watching %s for new logs", logDir)
+	log.Printf("watching %s for new logs (%d directories)", logDir, n)
 
 	for {
 		select {
@@ -72,6 +75,15 @@ func (w *Watcher) Run(ctx context.Context) error {
 			if event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) {
 				if isLogFile(event.Name) {
 					go w.processFile(ctx, event.Name)
+				} else if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
+					// arcdps creates a new subdirectory the first time it writes a
+					// log for an encounter or character it hasn't seen before. Add it
+					// so the log file written into it immediately afterwards is caught.
+					if addErr := fw.Add(event.Name); addErr != nil {
+						log.Printf("warning: could not watch %s: %v", event.Name, addErr)
+					} else {
+						log.Printf("watching new directory: %s", event.Name)
+					}
 				}
 			}
 
@@ -82,6 +94,28 @@ func (w *Watcher) Run(ctx context.Context) error {
 			log.Printf("watcher error: %v", err)
 		}
 	}
+}
+
+// addDirsRecursive adds dir and all its subdirectories to fw.
+// Returns the number of directories added.
+func addDirsRecursive(fw *fsnotify.Watcher, dir string) (int, error) {
+	n := 0
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			// Skip unreadable entries rather than aborting the whole walk.
+			log.Printf("warning: skipping %s: %v", path, err)
+			return nil
+		}
+		if d.IsDir() {
+			if addErr := fw.Add(path); addErr != nil {
+				log.Printf("warning: could not watch %s: %v", path, addErr)
+			} else {
+				n++
+			}
+		}
+		return nil
+	})
+	return n, err
 }
 
 // processFile parses, uploads, and posts a single log file.
