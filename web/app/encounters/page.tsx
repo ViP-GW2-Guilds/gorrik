@@ -36,6 +36,8 @@ async function fetchEncounterStats(category?: string): Promise<EncounterStat[]> 
         l.subcategory,
         COUNT(*)::int                                                    AS total_logs,
         COUNT(*) FILTER (WHERE l.result = 'success')::int               AS kills,
+        MIN(l.logged_at) FILTER (WHERE l.result = 'success')            AS first_kill_at,
+        MAX(l.logged_at) FILTER (WHERE l.result = 'success')            AS latest_kill_at,
         f.duration_ms                                                    AS fastest_ms,
         f.logged_at                                                      AS fastest_logged_at,
         ROUND(AVG(l.duration_ms) FILTER (WHERE l.result = 'success'))::bigint AS mean_ms,
@@ -80,6 +82,12 @@ async function fetchEncounterStats(category?: string): Promise<EncounterStat[]> 
     subcategory: row.subcategory as string,
     totalLogs: row.total_logs as number,
     kills: row.kills as number,
+    firstKillAt: row.first_kill_at
+      ? new Date(row.first_kill_at as string).toISOString().slice(0, 10)
+      : null,
+    latestKillAt: row.latest_kill_at
+      ? new Date(row.latest_kill_at as string).toISOString().slice(0, 10)
+      : null,
     fastestMs: (row.fastest_ms as number | null) ?? null,
     fastestLoggedAt: row.fastest_logged_at
       ? new Date(row.fastest_logged_at as string).toISOString().slice(0, 10)
