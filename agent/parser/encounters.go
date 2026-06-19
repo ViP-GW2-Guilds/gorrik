@@ -10,7 +10,8 @@ const (
 	resultByTeamChange                                 // main boss changes team after health drops below 50%
 	resultByAttackTargetUntargetable                   // attack target of AttackTargetGadgetSpecies goes targetable→untargetable
 	resultByExitCombatAfterSpawn                       // boss exits combat; if ExitCombatMinDelay > 0, must be ≥ that many ms after spawning
-	resultByNPCPresent                                 // a specific NPC species appears in the agent list
+	resultByNPCSpawn                                   // a specific NPC species emits a spawn event during combat
+	resultBySkillPresent                               // a specific skill ID appears in the log's skill list
 	resultUnknown                                      // parser cannot detect result for this encounter
 )
 
@@ -40,8 +41,11 @@ type encounterDef struct {
 	// going targetable→untargetable signals a successful kill (e.g. Deimos = 24660).
 	AttackTargetGadgetSpecies int
 
-	// For resultByNPCPresent: success if this NPC species appears in the agent list.
+	// For resultByNPCSpawn: success when an NPC of this species emits a spawn event.
 	ResultNPCSpecies int
+
+	// For resultBySkillPresent: success when this skill ID appears in the log's skill list.
+	ResultSkillID uint32
 
 	// For resultByExitCombatAfterSpawn: minimum ms between the boss's spawn event
 	// and the exit-combat event. Use 0 for no minimum (boss may be pre-placed in
@@ -71,9 +75,11 @@ type resolvedEncounter struct {
 	// going targetable→untargetable signals success (resultByAttackTargetUntargetable).
 	attackTargetGadgetAddrs []uint64
 
-	// npcResultPresent is true when the ResultNPCSpecies NPC was found in the agent list.
-	npcResultPresent bool
+	// resultNPCAddrs holds agent addresses of ResultNPCSpecies NPCs found in the agent list.
+	// Used by resultByNPCSpawn to match spawn events.
+	resultNPCAddrs []uint64
 
+	resultSkillID      uint32
 	exitCombatMinDelay int64
 }
 
@@ -162,9 +168,10 @@ func buildEncounterTable() map[uint16]*encounterDef {
 
 	// Wing 6 — Mythwright Gambit
 	// Trigger is the ConjuredAmalgamate gadget (43974). Success = RoleplayZommoros (21118) spawns.
+	// Zommoros is present in the agent list in all logs; we need to detect his spawn event.
 	add(&encounterDef{
 		Name: "Conjured Amalgamate", Category: "raid", Subcategory: "Mythwright Gambit (Wing 6)",
-		ResultKind:       resultByNPCPresent,
+		ResultKind:       resultByNPCSpawn,
 		ResultNPCSpecies: 21118,
 	}, 43974)
 	add(&encounterDef{
@@ -237,8 +244,10 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 24485, 24266)
 	add(&encounterDef{
 		Name: "Harvest Temple", Category: "strike", Subcategory: "End of Dragons",
-		// Gadget-based encounter; result detection not implemented.
-		ResultKind: resultUnknown,
+		// Success detected via skill 63896 (HarvestTempleLiftOff) appearing in the skill
+		// list — this animation only triggers in the final victory sequence.
+		ResultKind:    resultBySkillPresent,
+		ResultSkillID: 63896,
 	}, 24375, 24223, 43488, 1378)
 	add(&encounterDef{
 		Name: "Old Lion's Court", Category: "strike", Subcategory: "End of Dragons",
@@ -351,8 +360,8 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 	}
 
 	cmSpeciesPresent := false
-	npcResultPresent := false
 	var attackTargetGadgetAddrs []uint64
+	var resultNPCAddrs []uint64
 	for _, a := range agents {
 		// Players have isElite != 0xFFFFFFFF; skip them.
 		// NPCs and gadgets both have isElite == 0xFFFFFFFF. Some boss kill targets
@@ -373,9 +382,9 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 		if def.AttackTargetGadgetSpecies != 0 && !isNPC(a) && speciesID == def.AttackTargetGadgetSpecies {
 			attackTargetGadgetAddrs = append(attackTargetGadgetAddrs, a.address)
 		}
-		// Check for resultByNPCPresent: success NPC appears in agent list.
+		// Collect addresses of ResultNPCSpecies NPCs for resultByNPCSpawn.
 		if def.ResultNPCSpecies != 0 && isNPC(a) && speciesID == def.ResultNPCSpecies {
-			npcResultPresent = true
+			resultNPCAddrs = append(resultNPCAddrs, a.address)
 		}
 	}
 
@@ -390,7 +399,8 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 		cmValue:                 def.CMValue,
 		cmSpeciesPresent:        cmSpeciesPresent,
 		attackTargetGadgetAddrs: attackTargetGadgetAddrs,
-		npcResultPresent:        npcResultPresent,
+		resultNPCAddrs:          resultNPCAddrs,
+		resultSkillID:           def.ResultSkillID,
 		exitCombatMinDelay:      def.ExitCombatMinDelay,
 	}
 }

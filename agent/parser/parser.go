@@ -199,6 +199,15 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		}
 	}
 
+	// Set of result-NPC addresses for resultByNPCSpawn (e.g. Zommoros in CA).
+	resultNPCAddrSet := make(map[uint64]bool, len(enc.resultNPCAddrs))
+	for _, addr := range enc.resultNPCAddrs {
+		resultNPCAddrSet[addr] = true
+	}
+
+	// Pre-compute whether the result skill is present in the skill list.
+	resultSkillPresent := enc.resultSkillID != 0 && skillIDs[enc.resultSkillID]
+
 	// ── Combat event scan ─────────────────────────────────────────────────────
 	var (
 		logStartTime    int64
@@ -224,6 +233,9 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		// If enc.exitCombatMinDelay == 0, any exit combat counts (boss may be pre-placed).
 		bossSpawnTime            = make(map[uint64]int64) // boss addr → spawn event time (ms)
 		bossExitCombatAfterSpawn = make(map[uint64]bool)  // boss addrs that satisfied the condition
+
+		// For resultByNPCSpawn: success when the designated NPC emits a spawn event.
+		npcSpawnedForResult bool
 	)
 
 	hasQuickplay := skillIDs[skillQuickplayBoost] || skillIDs[skillQuickplayMoral]
@@ -264,6 +276,9 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		case scSpawn:
 			if allBossAddrs[item.srcAgent] {
 				bossSpawnTime[item.srcAgent] = item.time
+			}
+			if resultNPCAddrSet[item.srcAgent] {
+				npcSpawnedForResult = true
 			}
 		case scExitCombat:
 			if allBossAddrs[item.srcAgent] {
@@ -315,7 +330,7 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	// ── Derived fields ────────────────────────────────────────────────────────
 	mode := detectMode(enc, hasQuickplay, hasEmboldened, maxEmbStacks, maxHealthByAddr, skillIDs)
-	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardID, determinedOnBoss, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn)
+	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardID, determinedOnBoss, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn, npcSpawnedForResult, resultSkillPresent)
 
 	var duration int64
 	if logEndTime > logStartTime {
@@ -391,6 +406,8 @@ func detectResult(
 	gadgetAttackTargets map[uint64][]uint64,
 	seenUntargetableAfterTargetable map[uint64]bool,
 	bossExitCombatAfterSpawn map[uint64]bool,
+	npcSpawnedForResult bool,
+	resultSkillPresent bool,
 ) string {
 	switch enc.resultKind {
 	case resultByAnyDeath:
@@ -432,8 +449,14 @@ func detectResult(
 		}
 		return "failure"
 
-	case resultByNPCPresent:
-		if enc.npcResultPresent {
+	case resultByNPCSpawn:
+		if npcSpawnedForResult {
+			return "success"
+		}
+		return "failure"
+
+	case resultBySkillPresent:
+		if resultSkillPresent {
 			return "success"
 		}
 		return "failure"
