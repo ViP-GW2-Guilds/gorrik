@@ -57,6 +57,7 @@ const (
 	skillEmboldened     uint32 = 68087
 	skillQuickplayBoost uint32 = 77676 // fractals
 	skillQuickplayMoral uint32 = 79492 // raids
+	skillDetermined762  uint32 = 762
 	skillDetermined895  uint32 = 895
 )
 
@@ -217,7 +218,8 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		rewardID        uint64
 		emboldenedCount = make(map[uint64]int) // agent address → stack count
 		maxHealthByAddr = make(map[uint64]int64)
-		determinedOnBoss bool // Determined (895) applied to main boss (not any agent)
+		determinedOnBoss    bool // Determined (895) applied to main boss (not any agent)
+		determinedOnBoss762 bool // Determined (762) applied to main boss
 
 		// For resultByTeamChange: boss's health must drop below 50% before a non-zero team change.
 		bossHealthBelow50           = make(map[uint64]bool) // boss addr → true once health ≤ 50%
@@ -311,12 +313,16 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			if item.result == resultKillingBlow && allBossAddrs[item.dstAgent] {
 				bossDeaths[item.dstAgent] = true
 			}
-			// Determined (895) buff applied to the boss — signals success for some encounters.
+			// Determined buff applied to the boss — signals success for some encounters.
 			// Check dstAgent (recipient) against boss addresses to avoid false positives from
 			// Determined being applied to players or other agents during mechanics.
-			if item.buff != 0 && item.buffRemove == 0 && item.isActivation == 0 &&
-				item.skillID == skillDetermined895 && allBossAddrs[item.dstAgent] {
-				determinedOnBoss = true
+			if item.buff != 0 && item.buffRemove == 0 && item.isActivation == 0 && allBossAddrs[item.dstAgent] {
+				if item.skillID == skillDetermined895 {
+					determinedOnBoss = true
+				}
+				if item.skillID == skillDetermined762 {
+					determinedOnBoss762 = true
+				}
 			}
 		}
 	}
@@ -330,7 +336,7 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	// ── Derived fields ────────────────────────────────────────────────────────
 	mode := detectMode(enc, hasQuickplay, hasEmboldened, maxEmbStacks, maxHealthByAddr, skillIDs)
-	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardID, determinedOnBoss, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn, npcSpawnedForResult, resultSkillPresent)
+	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardID, determinedOnBoss, determinedOnBoss762, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn, npcSpawnedForResult, resultSkillPresent)
 
 	var duration int64
 	if logEndTime > logStartTime {
@@ -403,6 +409,7 @@ func detectResult(
 	bossDeaths, bossTeamChangedAfterBelow50 map[uint64]bool,
 	rewardID uint64,
 	determinedOnBoss bool,
+	determinedOnBoss762 bool,
 	gadgetAttackTargets map[uint64][]uint64,
 	seenUntargetableAfterTargetable map[uint64]bool,
 	bossExitCombatAfterSpawn map[uint64]bool,
@@ -429,6 +436,12 @@ func detectResult(
 
 	case resultByBuff895:
 		if determinedOnBoss {
+			return "success"
+		}
+		return "failure"
+
+	case resultByBuff762:
+		if determinedOnBoss762 {
 			return "success"
 		}
 		return "failure"

@@ -6,7 +6,8 @@ const (
 	resultByDeath                    resultKind = iota // all mainSpecies addresses must receive a ChangeDead or killing-blow event
 	resultByAnyDeath                                   // any mainSpecies address receives a ChangeDead or killing-blow event
 	resultByReward                                     // a Reward event with a matching rewardID must appear
-	resultByBuff895                                    // skill 895 (Determined) applied to the boss
+	resultByBuff895                                    // skill 895 (SoullessHorrorDetermined) applied to the boss
+	resultByBuff762                                    // skill 762 (Determined) applied to the boss
 	resultByTeamChange                                 // main boss changes team after health drops below 50%
 	resultByAttackTargetUntargetable                   // attack target of AttackTargetGadgetSpecies goes targetable→untargetable
 	resultByExitCombatAfterSpawn                       // boss exits combat; if ExitCombatMinDelay > 0, must be ≥ that many ms after spawning
@@ -266,10 +267,10 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 25989)
 
 	// Visions of Eternity
-	// Guardian's Glade signals success via Determined (895), not ChangeDead.
+	// Guardian's Glade signals success via Determined (762), not ChangeDead.
 	add(&encounterDef{
 		Name: "Guardian's Glade", Category: "strike", Subcategory: "Visions of Eternity",
-		MainSpecies: []int{27124}, ResultKind: resultByBuff895,
+		MainSpecies: []int{27124}, ResultKind: resultByBuff762,
 	}, 27124)
 
 	// ── Fractals ───────────────────────────────────────────────────────────────
@@ -296,9 +297,9 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 23254)
 
 	// Silent Surf
-	// Kanaxai signals success via Determined (895), not ChangeDead.
-	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25572}, ResultKind: resultByBuff895, CMKind: cmNone}, 25572)
-	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25577}, ResultKind: resultByBuff895, CMKind: cmAlways}, 25577)
+	// Kanaxai signals success via Determined (762), not ChangeDead.
+	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25572}, ResultKind: resultByBuff762, CMKind: cmNone}, 25572)
+	add(&encounterDef{Name: "Kanaxai", Category: "fractal", Subcategory: "Silent Surf", MainSpecies: []int{25577}, ResultKind: resultByBuff762, CMKind: cmAlways}, 25577)
 
 	// Lonely Tower
 	// Eparch applies Determined (895) on successful defeat rather than emitting ChangeDead.
