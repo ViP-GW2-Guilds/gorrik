@@ -3,12 +3,13 @@ package parser
 type resultKind int
 
 const (
-	resultByDeath                    resultKind = iota // all mainSpecies addresses must receive a ChangeDead event
+	resultByDeath                    resultKind = iota // all mainSpecies addresses must receive a ChangeDead or killing-blow event
+	resultByAnyDeath                                   // any mainSpecies address receives a ChangeDead or killing-blow event
 	resultByReward                                     // a Reward event with a matching rewardID must appear
 	resultByBuff895                                    // skill 895 (Determined) applied to the boss
-	resultByTeamChange                                 // main boss's team changes (surrender/capture mechanic)
+	resultByTeamChange                                 // main boss changes team after health drops below 50%
 	resultByAttackTargetUntargetable                   // attack target of AttackTargetGadgetSpecies goes targetable→untargetable
-	resultByExitCombatAfterSpawn                       // boss exits combat ≥10 s after spawning
+	resultByExitCombatAfterSpawn                       // boss exits combat; if ExitCombatMinDelay > 0, must be ≥ that many ms after spawning
 	resultByNPCPresent                                 // a specific NPC species appears in the agent list
 	resultUnknown                                      // parser cannot detect result for this encounter
 )
@@ -42,6 +43,11 @@ type encounterDef struct {
 	// For resultByNPCPresent: success if this NPC species appears in the agent list.
 	ResultNPCSpecies int
 
+	// For resultByExitCombatAfterSpawn: minimum ms between the boss's spawn event
+	// and the exit-combat event. Use 0 for no minimum (boss may be pre-placed in
+	// the instance and never emit a spawn event).
+	ExitCombatMinDelay int64
+
 	CMKind  cmKind
 	CMValue int64 // health threshold (cmByHealth), skill ID (cmBySkill), or species ID (cmBySpecies)
 }
@@ -67,6 +73,8 @@ type resolvedEncounter struct {
 
 	// npcResultPresent is true when the ResultNPCSpecies NPC was found in the agent list.
 	npcResultPresent bool
+
+	exitCombatMinDelay int64
 }
 
 var encountersByTriggerID = buildEncounterTable()
@@ -108,9 +116,9 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		ResultKind: resultByReward, RewardID: 496,
 	}, 16247)
 	// Phase 1 Xera (16246) teleports away at 50% and is replaced by phase 2 (16286).
-	// Phase 2 Xera briefly drops out of combat at the start of the phase; the kill is
-	// detected by her exiting combat ≥10 s after spawning (matching evtc's AgentCombatExitDeterminer).
-	add(&encounterDef{Name: "Xera", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)", MainSpecies: []int{16286}, ResultKind: resultByExitCombatAfterSpawn}, 16246, 16286)
+	// Phase 2 Xera briefly drops out of combat at the very start of the phase; the kill
+	// is detected by her exiting combat ≥10 s after spawning (filters out that false positive).
+	add(&encounterDef{Name: "Xera", Category: "raid", Subcategory: "Stronghold of the Faithful (Wing 3)", MainSpecies: []int{16286}, ResultKind: resultByExitCombatAfterSpawn, ExitCombatMinDelay: 10000}, 16246, 16286)
 
 	// Wing 4 — Bastion of the Penitent
 	add(&encounterDef{
@@ -146,9 +154,8 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		ResultKind: resultUnknown, // Desmina does not die; reward-based but no fixed reward ID
 	}, 19828)
 	// "Statues of Grenth" is actually three separate encounters in arcdps logs.
-	// Eyes of Fate: arcdps logs the Eye that was the primary trigger; only that Eye needs to die.
-	add(&encounterDef{Name: "Eyes of Fate", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19651}}, 19651)
-	add(&encounterDef{Name: "Eyes of Fate", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19844}}, 19844)
+	// Eyes: either eye (Judgment=19651, Fate=19844) dying counts as success (AnyCombinedResultDeterminer).
+	add(&encounterDef{Name: "Eyes of Fate", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19651, 19844}, ResultKind: resultByAnyDeath}, 19651, 19844)
 	add(&encounterDef{Name: "Broken King", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19691}}, 19691)
 	add(&encounterDef{Name: "Eater of Souls", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19536}}, 19536)
 	add(&encounterDef{Name: "Dhuum", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19450}}, 19450)
@@ -164,7 +171,9 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		Name: "Twin Largos", Category: "raid", Subcategory: "Mythwright Gambit (Wing 6)",
 		MainSpecies: []int{21105, 21089},
 	}, 21105, 21089)
-	add(&encounterDef{Name: "Qadim", Category: "raid", Subcategory: "Mythwright Gambit (Wing 6)", MainSpecies: []int{20934}}, 20934)
+	// Qadim exits combat when killed (no ChangeDead). ExitCombatMinDelay=0 because he is
+	// pre-placed and may not emit a spawn event, so any exit combat = success.
+	add(&encounterDef{Name: "Qadim", Category: "raid", Subcategory: "Mythwright Gambit (Wing 6)", MainSpecies: []int{20934}, ResultKind: resultByExitCombatAfterSpawn, ExitCombatMinDelay: 0}, 20934)
 
 	// Wing 7 — The Key of Ahdashim
 	add(&encounterDef{
@@ -382,6 +391,7 @@ func lookupEncounter(triggerID uint16, agents []rawAgent) resolvedEncounter {
 		cmSpeciesPresent:        cmSpeciesPresent,
 		attackTargetGadgetAddrs: attackTargetGadgetAddrs,
 		npcResultPresent:        npcResultPresent,
+		exitCombatMinDelay:      def.ExitCombatMinDelay,
 	}
 }
 

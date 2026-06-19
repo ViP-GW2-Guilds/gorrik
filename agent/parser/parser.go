@@ -38,15 +38,19 @@ const (
 	scExitCombat   uint8 = 2
 	scChangeDead   uint8 = 4
 	scSpawn        uint8 = 6
+	scHealthUpdate uint8 = 8  // dstAgent = health fraction * 10000 (10000 = 100%)
 	scLogStart     uint8 = 9
 	scLogEnd       uint8 = 10
 	scMaxHealth    uint8 = 12
 	scReward       uint8 = 17
 	scBuffInitial  uint8 = 18
-	scTeamChange   uint8 = 22 // agent switches affiliation (e.g. boss surrenders)
+	scTeamChange   uint8 = 22 // agent switches affiliation (e.g. boss surrenders); dstAgent = new team ID
 	scAttackTarget uint8 = 23 // links attack target to parent gadget
 	scTargetable   uint8 = 24 // agent becomes targetable/untargetable (dstAgent != 0 = targetable)
 )
+
+// result field values for scNormal (damage) events.
+const resultKillingBlow uint8 = 8
 
 // Skill IDs used for mode detection.
 const (
@@ -97,6 +101,7 @@ type combatItem struct {
 	dstAgent     uint64
 	value        int32
 	skillID      uint32
+	result       uint8 // for scNormal events: 8 = killing blow
 	buff         uint8
 	buffRemove   uint8
 	isActivation uint8
@@ -199,12 +204,15 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		logStartTime    int64
 		logEndTime      int64
 		logStartUnix    int32
-		bossDeaths      = make(map[uint64]bool)
-		bossTeamChanged = make(map[uint64]bool)
+		bossDeaths      = make(map[uint64]bool) // includes killing blows
 		rewardID        uint64
 		emboldenedCount = make(map[uint64]int) // agent address → stack count
 		maxHealthByAddr = make(map[uint64]int64)
 		determinedOnBoss bool // Determined (895) applied to main boss (not any agent)
+
+		// For resultByTeamChange: boss's health must drop below 50% before a non-zero team change.
+		bossHealthBelow50           = make(map[uint64]bool) // boss addr → true once health ≤ 50%
+		bossTeamChangedAfterBelow50 = make(map[uint64]bool) // boss addr → true once team changed after below-50%
 
 		// For resultByAttackTargetUntargetable (e.g. Deimos):
 		// srcAgent of scAttackTarget = attack target; dstAgent = parent gadget.
@@ -212,10 +220,10 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		seenTargetable                  = make(map[uint64]bool)     // attack targets seen as targetable
 		seenUntargetableAfterTargetable = make(map[uint64]bool)     // attack targets that completed true→false
 
-		// For resultByExitCombatAfterSpawn (e.g. Xera phase 2):
-		// success when the boss exits combat ≥10 s after spawning.
-		bossSpawnTime             = make(map[uint64]int64) // boss addr → spawn event time (ms)
-		bossExitCombatAfterSpawn  = make(map[uint64]bool)  // boss addrs that satisfied the condition
+		// For resultByExitCombatAfterSpawn: boss exits combat after spawning.
+		// If enc.exitCombatMinDelay == 0, any exit combat counts (boss may be pre-placed).
+		bossSpawnTime            = make(map[uint64]int64) // boss addr → spawn event time (ms)
+		bossExitCombatAfterSpawn = make(map[uint64]bool)  // boss addrs that satisfied the condition
 	)
 
 	hasQuickplay := skillIDs[skillQuickplayBoost] || skillIDs[skillQuickplayMoral]
@@ -239,8 +247,16 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			rewardID = item.dstAgent
 		case scChangeDead:
 			bossDeaths[item.srcAgent] = true
+		case scHealthUpdate:
+			// dstAgent = health fraction * 10000; 5000 = 50%.
+			if allBossAddrs[item.srcAgent] && item.dstAgent <= 5000 {
+				bossHealthBelow50[item.srcAgent] = true
+			}
 		case scTeamChange:
-			bossTeamChanged[item.srcAgent] = true
+			// Success = boss health dropped below 50% first, then non-zero team change.
+			if allBossAddrs[item.srcAgent] && bossHealthBelow50[item.srcAgent] && item.dstAgent != 0 {
+				bossTeamChangedAfterBelow50[item.srcAgent] = true
+			}
 		case scMaxHealth:
 			if item.value > 0 {
 				maxHealthByAddr[item.srcAgent] = int64(item.value)
@@ -251,7 +267,10 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			}
 		case scExitCombat:
 			if allBossAddrs[item.srcAgent] {
-				if spawnAt, ok := bossSpawnTime[item.srcAgent]; ok && item.time-spawnAt >= 10000 {
+				minDelay := enc.exitCombatMinDelay
+				if minDelay == 0 {
+					bossExitCombatAfterSpawn[item.srcAgent] = true
+				} else if spawnAt, ok := bossSpawnTime[item.srcAgent]; ok && item.time-spawnAt >= minDelay {
 					bossExitCombatAfterSpawn[item.srcAgent] = true
 				}
 			}
@@ -272,6 +291,11 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			// Intentionally not checking Determined here: evtc ignores initial buffs
 			// (AgentBuffGainedDeterminer uses ignoreInitial=true by default).
 		case scNormal:
+			// Killing blow (result=8): treat the target as dead, same as a ChangeDead event.
+			// Some bosses (e.g. Bandit Trio) emit a killing blow without a subsequent ChangeDead.
+			if item.result == resultKillingBlow && allBossAddrs[item.dstAgent] {
+				bossDeaths[item.dstAgent] = true
+			}
 			// Determined (895) buff applied to the boss — signals success for some encounters.
 			// Check dstAgent (recipient) against boss addresses to avoid false positives from
 			// Determined being applied to players or other agents during mechanics.
@@ -291,7 +315,7 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	// ── Derived fields ────────────────────────────────────────────────────────
 	mode := detectMode(enc, hasQuickplay, hasEmboldened, maxEmbStacks, maxHealthByAddr, skillIDs)
-	result := detectResult(enc, bossDeaths, bossTeamChanged, rewardID, determinedOnBoss, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn)
+	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardID, determinedOnBoss, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn)
 
 	var duration int64
 	if logEndTime > logStartTime {
@@ -361,7 +385,7 @@ func detectMode(
 
 func detectResult(
 	enc resolvedEncounter,
-	bossDeaths, bossTeamChanged map[uint64]bool,
+	bossDeaths, bossTeamChangedAfterBelow50 map[uint64]bool,
 	rewardID uint64,
 	determinedOnBoss bool,
 	gadgetAttackTargets map[uint64][]uint64,
@@ -369,6 +393,17 @@ func detectResult(
 	bossExitCombatAfterSpawn map[uint64]bool,
 ) string {
 	switch enc.resultKind {
+	case resultByAnyDeath:
+		// Success when any species' address receives a death or killing-blow event.
+		for _, addrs := range enc.mainBossAddrs {
+			for _, addr := range addrs {
+				if bossDeaths[addr] {
+					return "success"
+				}
+			}
+		}
+		return "failure"
+
 	case resultByReward:
 		if rewardID == enc.rewardID {
 			return "success"
@@ -385,10 +420,12 @@ func detectResult(
 		if len(enc.mainBossAddrs) == 0 {
 			return "unknown"
 		}
-		// Success when the main boss switches affiliation (capture/surrender mechanic).
+		// Success when the boss's health dropped below 50% and then the boss changed teams
+		// to a non-zero affiliation. Filtering by health guards against bosses that change
+		// teams multiple times during a fight (e.g. Ankka in XJJ).
 		for _, addrs := range enc.mainBossAddrs {
 			for _, addr := range addrs {
-				if bossTeamChanged[addr] {
+				if bossTeamChangedAfterBelow50[addr] {
 					return "success"
 				}
 			}
@@ -566,7 +603,7 @@ func (r *byteReader) readCombatItemRev0() combatItem {
 	r.skip(9)                          // padding
 	r.skip(1)                          // iff
 	item.buff = r.readU8()
-	r.skip(1) // result
+	item.result = r.readU8()
 	item.isActivation = r.readU8()
 	item.buffRemove = r.readU8()
 	r.skip(3) // is_ninety, is_fifty, is_moving
@@ -596,7 +633,7 @@ func (r *byteReader) readCombatItemRev1() combatItem {
 	r.skip(2)              // dst_master_instid
 	r.skip(1)              // iff
 	item.buff = r.readU8()
-	r.skip(1) // result
+	item.result = r.readU8()
 	item.isActivation = r.readU8()
 	item.buffRemove = r.readU8()
 	r.skip(3) // is_ninety, is_fifty, is_moving
