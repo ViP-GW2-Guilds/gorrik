@@ -8,16 +8,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/spf13/cobra"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/api"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/config"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/uploader"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/watcher"
+	"github.com/spf13/cobra"
 )
 
 var (
-	importDryRun bool
-	importDir    string
+	importDryRun  bool
+	importDir     string
 	importWorkers int
 )
 
@@ -29,7 +29,10 @@ every .evtc / .zevtc file found. Uploads are parallelised across --workers
 goroutines; parsing is fast, so workers are sized for upload throughput.
 
 Existing logs that have already been indexed are not re-uploaded — the API
-rejects duplicates based on filename.`,
+rejects duplicates based on filename.
+
+Pass the directory with --dir; a bare positional argument is rejected.`,
+	Args: cobra.NoArgs,
 	RunE: runImport,
 }
 
