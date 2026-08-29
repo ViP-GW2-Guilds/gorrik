@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,8 +11,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/spf13/cobra"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/api"
+	"github.com/spf13/cobra"
 )
 
 var importDpsUrlsCachePath string
@@ -53,6 +54,9 @@ func runImportDpsUrls(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("read cache: %w", err)
 	}
+
+	// Log Manager writes the file with a UTF-8 BOM, which encoding/json rejects.
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 
 	var cache logManagerCache
 	if err := json.Unmarshal(data, &cache); err != nil {
