@@ -28,6 +28,7 @@ Run this before 'gorrik backfill-dps' to avoid re-uploading files that
 Log Manager has already uploaded.
 
 Default cache path: %APPDATA%\arcdps Log Manager\LogDataCache.json`,
+	Args: cobra.NoArgs,
 	RunE: runImportDpsUrls,
 }
 

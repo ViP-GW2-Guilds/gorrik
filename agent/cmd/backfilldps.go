@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/api"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/config"
 	"github.com/ViP-GW2-Guilds/gorrik/agent/dpsreport"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -34,6 +34,7 @@ duration specified in the Retry-After header before retrying (up to 3 times).
 
 Run 'gorrik import-dps-urls' first to populate URLs from the arcdps
 Log Manager cache without re-uploading files.`,
+	Args: cobra.NoArgs,
 	RunE: runBackfillDps,
 }
 
