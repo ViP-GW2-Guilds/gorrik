@@ -80,6 +80,9 @@ gorrik import [--dir <path>] [--workers <n>] [--dry-run]
 | `--workers` | 4 | Number of parallel upload workers |
 | `--dry-run` | false | Parse and log without uploading |
 
+The directory must be given with the `--dir` flag. A bare positional path
+(`gorrik import C:\logs`) is rejected — it is not treated as the directory.
+
 Note: `gorrik import` does not upload to dps.report. Use `gorrik backfill-dps` for that after importing.
 
 #### `gorrik backfill-dps`
@@ -95,6 +98,9 @@ gorrik backfill-dps [--dir <path>] [--rate <n>] [--dry-run]
 | `--dir` | arcdps log dir from config | Directory containing the local log files |
 | `--rate` | 1.0 | Max uploads per second (e.g. `0.5` = one every two seconds) |
 | `--dry-run` | false | Show what would be uploaded without uploading |
+
+As with `gorrik import`, the directory must be passed via `--dir`; a bare
+positional path is rejected.
 
 HTTP 429 responses are handled automatically: the command waits for the duration in the `Retry-After` header (defaulting to 60 s) and retries up to 3 times before giving up on that file.
 
