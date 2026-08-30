@@ -73,6 +73,46 @@ deliver pasted text both as a bracketed paste event and as individual keystrokes
   on Windows, or add a `--no-tui` flag
 - Until fixed, workaround is to edit `%APPDATA%\gorrik\gorrik.toml` directly
 
+### Agent: `gorrik status` and `gorrik sync`
+The CLI has one verb per operation (`import`, `import-dps-urls`, `backfill-dps`), each with its
+own flags. These run infrequently enough that the flags never become second nature, and until
+`cobra.NoArgs` was added a bare positional path was silently ignored in favour of the configured
+directory. Two additions collapse the common cases:
+
+**`gorrik status`** — also the bare `gorrik` output, replacing the help dump:
+- config path and whether it loaded
+- resolved log dir: exists, file count, size on disk
+- DB: total indexed logs, newest `logged_at`
+- "behind by N": local files not yet indexed — needs a new `POST /api/logs/missing` taking a
+  filename list and returning the unindexed subset
+- dps.report: count of indexed logs still missing a URL
+- a suggested next command
+
+**`gorrik sync`** — the catch-up flow as one verb:
+- `import` (configured dir) → `import-dps-urls` (if a cache path is set or found at the default
+  location) → `backfill-dps`
+- flags: `--dry-run`, `--skip-dps`
+- config addition: `[arcdps_log_manager] cache_path`, auto-detected from
+  `%APPDATA%\arcdps Log Manager\LogDataCache.json`, so `sync` needs no arguments
+
+This is the first step; the Local Operations UI below builds on it.
+
+### Agent + Web: Local Operations UI
+The Windows terminal is a poor management surface, and the tool Gorrik replaces (arcdps Log
+Manager) has a local UI. A `gorrik ui` command would serve a localhost web app that:
+- browses the log history — reads the same Neon DB directly, or via the Vercel API
+- exposes the operations as buttons: Sync / Import / Backfill / edit config, with streamed progress
+- **Local Storage panel** — the feature that actually justifies replacing ALM: show which local
+  logs are already in R2 and indexed, total reclaimable disk (~20 GB), and a prune action guarded
+  so it never deletes a log not confirmed in both R2 and the DB. ALM cannot do this because ALM
+  *is* the local store.
+
+The frontend can reuse `web/` React components. Later polish: wrap it in a Wails shell for a
+native window and native directory dialogs — a ~15 MB binary over the OS webview, not Electron.
+
+A menu-driven TUI (`bubbletea`) was considered as a lighter alternative but is a strict subset of
+this; skip it if the local UI is built.
+
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
 intended richer view:
@@ -108,3 +148,20 @@ reset timer logic and encounter scheduling data.
 ### Multi-User / Sharing
 Open the app to guildmates. Currently a personal tool — each instance is a single-user
 deployment. Sharing would require auth and per-user data isolation.
+
+### Wingman Upload Integration
+Gw2Wingman (gw2wingman.nl) aggregates instanced-PvE logs for build and rotation analytics; it
+has its own local uploader that watches the log folder. Once Gorrik prunes local logs that
+uploader can no longer reach the ones it missed, so Gorrik — the one process that sees every log
+exactly once — is the right place to fan out to Wingman alongside R2 and dps.report.
+
+- `upload_to_wingman = true` in `[behaviour]`, parallel to `upload_to_dps_report`, off by default
+- filter the fan-out to instanced content using the parser's existing `category` / `subcategory`
+- `gorrik backfill-wingman`: Wingman can ingest a dps.report permalink, and those URLs are
+  already collected — backfill is a POST per URL, no file uploads, and works after local logs
+  are gone
+- confirm Wingman's API (ingest-by-dps.report-link endpoint, the already-known check) against
+  their docs or by inspecting the installed uploader's traffic
+- opt-in only: uploading shares squadmate account names with a public aggregator
+
+Depends on the local-log/R2 reconciliation from the Local Operations UI work.
