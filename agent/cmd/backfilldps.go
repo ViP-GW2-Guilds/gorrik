@@ -48,7 +48,6 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 	if backfillRate <= 0 {
 		return fmt.Errorf("--rate must be greater than zero")
 	}
-	sleepBetween := time.Duration(float64(time.Second) / backfillRate)
 
 	dir := backfillDir
 	if dir == "" {
@@ -75,10 +74,19 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	apiClient := api.New(cfg, backfillDryRun)
+	return backfillDpsReport(ctx, dir, backfillRate, backfillDryRun, api.New(cfg, backfillDryRun))
+}
+
+// backfillDpsReport uploads to dps.report every log under dir that the database
+// still has no dps.report URL for, then patches the URL back.
+func backfillDpsReport(ctx context.Context, dir string, rate float64, dryRun bool, client *api.Client) error {
+	if rate <= 0 {
+		return fmt.Errorf("rate must be greater than zero")
+	}
+	sleepBetween := time.Duration(float64(time.Second) / rate)
 
 	log.Println("fetching logs without dps.report URL...")
-	entries, err := apiClient.FetchLogsWithoutDpsURL(ctx)
+	entries, err := client.FetchLogsWithoutDpsURL(ctx)
 	if err != nil {
 		return err
 	}
@@ -109,7 +117,7 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 	}
 
 	log.Printf("%d local files matched; uploading at %g/s (%s between uploads)",
-		len(toUpload), backfillRate, sleepBetween)
+		len(toUpload), rate, sleepBetween)
 
 	dpsClient := dpsreport.New(cfg.Behaviour.DpsReportUserToken)
 
@@ -121,7 +129,7 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 		base := filepath.Base(path)
 		logID := need[base]
 
-		if backfillDryRun {
+		if dryRun {
 			log.Printf("[dry-run] would upload %s → dps.report (log %s)", base, logID)
 			skipped++
 			continue
@@ -135,7 +143,7 @@ func runBackfillDps(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		if err := apiClient.PatchLogDpsURL(ctx, logID, permalink); err != nil {
+		if err := client.PatchLogDpsURL(ctx, logID, permalink); err != nil {
 			log.Printf("PATCH failed for %s (%s): %v", base, logID, err)
 			failed++
 		} else {

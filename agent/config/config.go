@@ -11,15 +11,22 @@ import (
 )
 
 type Config struct {
-	Arcdps    ArcdpsConfig    `toml:"arcdps"`
-	API       APIConfig       `toml:"api"`
-	Storage   StorageConfig   `toml:"storage"`
-	Behaviour BehaviourConfig `toml:"behaviour"`
+	Arcdps           ArcdpsConfig           `toml:"arcdps"`
+	ArcdpsLogManager ArcdpsLogManagerConfig `toml:"arcdps_log_manager"`
+	API              APIConfig              `toml:"api"`
+	Storage          StorageConfig          `toml:"storage"`
+	Behaviour        BehaviourConfig        `toml:"behaviour"`
 }
 
 type ArcdpsConfig struct {
 	AutoDetect bool   `toml:"auto_detect"`
 	LogDir     string `toml:"log_dir"`
+}
+
+type ArcdpsLogManagerConfig struct {
+	// CachePath overrides the auto-detected LogDataCache.json location used by
+	// 'gorrik import-dps-urls' and 'gorrik sync'.
+	CachePath string `toml:"cache_path"`
 }
 
 type APIConfig struct {
@@ -114,6 +121,24 @@ func DetectArcdpsLogDir() string {
 		}
 	}
 	return ""
+}
+
+// DetectLogManagerCache returns the default arcdps Log Manager cache path if the
+// file exists, otherwise an empty string. The default location on Windows is
+// %LOCALAPPDATA%\ArcdpsLogManager\LogDataCache.json.
+func DetectLogManagerCache() string {
+	if runtime.GOOS != "windows" {
+		return ""
+	}
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		return ""
+	}
+	path := filepath.Join(localAppData, "ArcdpsLogManager", "LogDataCache.json")
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	return path
 }
 
 // Validate returns an error if cfg is missing required fields for normal operation.
