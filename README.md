@@ -115,6 +115,26 @@ The directory must be given with the `--dir` flag. A bare positional path
 
 Note: `gorrik import` does not upload to dps.report. Use `gorrik backfill-dps` for that after importing.
 
+#### `gorrik reparse`
+
+Re-parses local log files and updates the matching database records in place —
+`result`, `mode`, `duration`, and encounter fields. `dps_report_url`, favourites
+and tags are preserved; logs not in the database are left alone; nothing is
+uploaded or deleted. Run it after a parser fix to correct already-imported records.
+
+```
+gorrik reparse [--dir <path>] [--workers <n>] [--dry-run]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--dir` | arcdps log dir from config | Directory to re-parse |
+| `--workers` | 8 | Number of parallel workers |
+| `--dry-run` | false | Report how many results would change without writing |
+
+Only files present in the given directory are re-parsed, so run it once per
+directory if your logs are split across several. Use `--dry-run` first.
+
 #### `gorrik backfill-dps`
 
 Uploads to dps.report any log that is in the database but has no dps.report URL. Rate-limited and safe to interrupt and re-run — already-uploaded logs are skipped on the next run.

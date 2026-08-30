@@ -2,11 +2,26 @@
 
 ## Active Backlog
 
-### Agent: Re-import Broken Encounter Logs After Parser Fix
-The parser's result detection was wrong for four raid encounters. The code has been fixed
-(commit on `main`), but the ~2,570 already-imported records have stale results in the DB:
+### Agent: Re-parse Broken Encounter Logs After Parser Fixes
+Many encounters had wrong result detection when the bulk of the ~17,900 logs were imported.
+The parser has since been fixed for 20+ encounters (`91f2d16`, `074013e`, `dfaf1b0`, `c9d2064`,
+`99fafe4`, `1c5c3b4`), but the already-imported records still carry the old results.
 
-Confirmed kill counts from arcdps Logs Manager (ground truth for verifying fixes):
+**Mechanism (shipped):** `gorrik reparse` re-parses local files and updates matching records
+in place — no delete, no re-upload, `dps_report_url` / favourites / tags preserved. Run
+`gorrik reparse --dir <path> --dry-run` first, then without `--dry-run`, once per local
+directory (`F:\arcdps_logs` and the live `arcdps.cbtlogs`).
+
+**Still open — encounters that need parser work, not just a re-parse:**
+- **Statues of Grenth**: split into Broken King / Eater of Souls / Statue of Darkness landed
+  (`dfaf1b0`); verify counts after re-parse.
+- **Ai, Keeper of the Peak** (~62 logs, `resultUnknown`): needs the encounter split into
+  Elemental / Dark / Both Phases and phase-based detection.
+- **Xunlai Jade Junkyard**, **Harvest Temple**: have `resultByTeamChange` / skill-based
+  detection now; verify against ground truth after re-parse and add custom logic if still off.
+
+Confirmed kill counts from arcdps Logs Manager (ground truth — may be stale, re-audit after
+the re-parse run):
 
 | Encounter | DB logs | True kills | Notes |
 |---|---|---|---|
@@ -20,47 +35,8 @@ Confirmed kill counts from arcdps Logs Manager (ground truth for verifying fixes
 | Kanaxai | 27 | 7 | gadget fix — verify after re-import |
 | Eparch | 19 | 9 | gadget fix — verify after re-import |
 
-**Statues of Grenth** (502 DB logs): arcdps Logs Manager records these as *three separate
-encounters* — Broken King, Eater of Souls, Statue of Darkness. Our current definition treats
-them as one encounter with four species as triggers, which is wrong. Needs to be split into
-three encounter entries with correct individual trigger/species IDs per sub-boss. Counts
-unknown until split.
-
-**Ai, Keeper of the Peak** (58 DB logs): arcdps Logs Manager records three variants —
-Elemental, Dark, Both Phases. Our trigger 23254 may only match one variant. Currently
-`resultUnknown` which is still correct; kill recovery requires splitting the encounter
-definition and implementing phase-based detection.
-
-**Xunlai Jade Junkyard** and **Harvest Temple** need custom detection logic —
-re-importing won't fix them. Both need their own implementation effort.
-
-**What was fixed:**
-- Xera: was requiring phase 1 form (16246) to die; it teleports away. Now only requires
-  phase 2 (16286) to die.
-- Deimos / Soulless Horror / Statues of Grenth: their kill targets are gadget-type agents
-  in the EVTC format (`prof >> 16 == 0xFFFF`). `isNPC()` was excluding them from address
-  collection, so ChangeDead events were never matched. Now both NPCs and gadgets are
-  collected for `mainBossAddrs`.
-
-**Note:** Soulless Horror and Statues of Grenth may still show 0 kills after re-import if
-the gadget fix doesn't fully cover them — in that case further investigation with kill logs
-is needed. Deimos and Xera fixes are higher confidence.
-
-**How to re-import:**
-1. Build a new Windows binary from the current `main` branch and transfer to the Windows
-   machine:
-   ```
-   GOOS=windows GOARCH=amd64 ~/go/bin/go1.24.3 build -o gorrik.exe .
-   ```
-2. Connect to the Neon DB and delete the stale records:
-   ```sql
-   DELETE FROM logs
-   WHERE encounter_name IN ('Deimos', 'Xera', 'Soulless Horror', 'Statues of Grenth');
-   ```
-3. On the Windows machine, run `gorrik import` against the full log directory.
-   - R2 uploads are skipped (HeadObject check; files already uploaded).
-   - Parser re-runs on every file; only the deleted encounters get re-inserted.
-   - This is safe to interrupt and re-run.
+**After the re-parse run:** re-audit every encounter against arcdps Logs Manager, update the
+table above, and open follow-up items for any encounter still wrong.
 
 ### Agent: Fix `gorrik setup` Paste Doubling on Windows
 When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
@@ -148,6 +124,12 @@ Depends on the local-log/R2 reconciliation from the Local Operations UI work.
 ---
 
 ## Shipped
+
+### `gorrik reparse` (2026-08-30, PR #3)
+- Re-parses local files and updates matching DB records in place (result, mode, duration,
+  encounter). Preserves `dps_report_url`, favourites, tags; skips logs not in the DB; nothing
+  uploaded or deleted. `--dry-run` reports how many results would change.
+- API: `PATCH /api/logs/reparse` (Bearer-authed), with a `dry_run` flag.
 
 ### `gorrik status` and `gorrik sync` (2026-08-29, PR #1)
 - `gorrik status` (also bare `gorrik`): config path, resolved log dir + file count + size,
