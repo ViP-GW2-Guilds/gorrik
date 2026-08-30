@@ -32,6 +32,10 @@ The wizard asks for your arcdps log directory, Cloudflare R2 credentials, and th
 auto_detect = true          # read log dir from arcdps.ini automatically
 log_dir     = ""            # override: explicit path to log directory
 
+[arcdps_log_manager]
+cache_path = ""             # override: path to LogDataCache.json
+                            # (auto-detected at %LOCALAPPDATA%\ArcdpsLogManager\LogDataCache.json)
+
 [api]
 url = "https://your-app.vercel.app/api"
 key = "your-api-key"
@@ -49,6 +53,32 @@ dps_report_user_token  = ""     # optional: associate dps.report uploads with yo
 ```
 
 ### Commands
+
+#### `gorrik status`
+
+Prints a summary of the current setup: the config file in use, the resolved
+arcdps log directory and its size, how many logs are indexed in the database,
+and how many local logs are not yet indexed. Running `gorrik` with no arguments
+does the same thing.
+
+```
+gorrik status
+```
+
+#### `gorrik sync`
+
+Runs the full catch-up flow in order: `import` → `import-dps-urls` → `backfill-dps`.
+The log directory and Log Manager cache path come from the config file, so no
+arguments are needed. Use this after the agent has been offline for a while.
+
+```
+gorrik sync [--dry-run] [--skip-dps]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--dry-run` | false | Show what would happen without uploading or writing |
+| `--skip-dps` | false | Skip the `import-dps-urls` and `backfill-dps` steps |
 
 #### `gorrik watch`
 
@@ -118,9 +148,12 @@ gorrik import-dps-urls --cache <path>
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--cache` | yes | Path to `LogDataCache.json` (default location: `%APPDATA%\arcdps Log Manager\LogDataCache.json`) |
+| `--cache` | yes | Path to `LogDataCache.json` (usual location: `%LOCALAPPDATA%\ArcdpsLogManager\LogDataCache.json`) |
 
 Logs are matched by base filename. Logs that already have a URL in the database are skipped.
+
+`gorrik sync` runs this step automatically using the cache path from
+`[arcdps_log_manager]` in the config, or the auto-detected default.
 
 #### `gorrik service`
 

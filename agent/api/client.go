@@ -63,6 +63,13 @@ type LogEntry struct {
 	DpsReportURL *string `json:"dpsReportUrl"`
 }
 
+// Stats is the summary returned by GET /api/logs/stats.
+type Stats struct {
+	Total            int        `json:"total"`
+	NewestLoggedAt   *time.Time `json:"newestLoggedAt"`
+	MissingDpsReport int        `json:"missingDpsReport"`
+}
+
 // PostLog sends parsed metadata for a single log to the API.
 // dpsReportURL may be empty if no dps.report upload was performed.
 // If the API URL is not configured, the call is skipped with a warning.
@@ -161,6 +168,86 @@ func (c *Client) PatchLogDpsURL(ctx context.Context, logID, dpsURL string) error
 		return fmt.Errorf("PATCH /logs/%s: server returned %s", logID, resp.Status)
 	}
 	return nil
+}
+
+// FetchStats returns summary counts from GET /api/logs/stats.
+func (c *Client) FetchStats(ctx context.Context) (*Stats, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("api.url not configured")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/logs/stats", nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("GET /logs/stats: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("GET /logs/stats returned %s", resp.Status)
+	}
+
+	var s Stats
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	return &s, nil
+}
+
+// FetchMissingFilenames returns the subset of names that is not yet indexed in
+// the database. The list is sent to POST /api/logs/missing in chunks.
+func (c *Client) FetchMissingFilenames(ctx context.Context, names []string) ([]string, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("api.url not configured")
+	}
+
+	const chunkSize = 5000
+	var missing []string
+	for start := 0; start < len(names); start += chunkSize {
+		end := start + chunkSize
+		if end > len(names) {
+			end = len(names)
+		}
+
+		body, err := json.Marshal(map[string][]string{"filenames": names[start:end]})
+		if err != nil {
+			return nil, fmt.Errorf("marshal: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/logs/missing", bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("build request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("POST /logs/missing: %w", err)
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			resp.Body.Close()
+			return nil, fmt.Errorf("POST /logs/missing returned %s", resp.Status)
+		}
+
+		var result struct {
+			Missing []string `json:"missing"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("decode response: %w", err)
+		}
+		resp.Body.Close()
+
+		missing = append(missing, result.Missing...)
+	}
+	return missing, nil
 }
 
 // FetchLogsWithoutDpsURL returns all log entries in the DB that have no dps_report_url set.

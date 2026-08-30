@@ -27,7 +27,7 @@ No files are uploaded — this only copies URLs that Log Manager already recorde
 Run this before 'gorrik backfill-dps' to avoid re-uploading files that
 Log Manager has already uploaded.
 
-Default cache path: %APPDATA%\arcdps Log Manager\LogDataCache.json`,
+Usual cache path: %LOCALAPPDATA%\ArcdpsLogManager\LogDataCache.json`,
 	Args: cobra.NoArgs,
 	RunE: runImportDpsUrls,
 }
@@ -51,7 +51,23 @@ type dpsReportUpload struct {
 }
 
 func runImportDpsUrls(cmd *cobra.Command, args []string) error {
-	data, err := os.ReadFile(importDpsUrlsCachePath)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sig
+		log.Println("interrupted")
+		cancel()
+	}()
+
+	return importDpsURLsFromCache(ctx, importDpsUrlsCachePath, api.New(cfg, false))
+}
+
+// importDpsURLsFromCache reads the arcdps Log Manager cache at cachePath and
+// patches any matching DB log that is missing a dps.report URL.
+func importDpsURLsFromCache(ctx context.Context, cachePath string, client *api.Client) error {
+	data, err := os.ReadFile(cachePath)
 	if err != nil {
 		return fmt.Errorf("read cache: %w", err)
 	}
@@ -78,20 +94,8 @@ func runImportDpsUrls(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sig
-		log.Println("interrupted")
-		cancel()
-	}()
-
-	apiClient := api.New(cfg, false)
-
 	log.Println("fetching logs without dps.report URL from database...")
-	entries, err := apiClient.FetchLogsWithoutDpsURL(ctx)
+	entries, err := client.FetchLogsWithoutDpsURL(ctx)
 	if err != nil {
 		return err
 	}
@@ -107,7 +111,7 @@ func runImportDpsUrls(cmd *cobra.Command, args []string) error {
 			skipped++
 			continue
 		}
-		if err := apiClient.PatchLogDpsURL(ctx, entry.ID, url); err != nil {
+		if err := client.PatchLogDpsURL(ctx, entry.ID, url); err != nil {
 			log.Printf("PATCH failed for %s: %v", entry.Filename, err)
 			failed++
 		} else {
