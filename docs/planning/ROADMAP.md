@@ -2,41 +2,38 @@
 
 ## Active Backlog
 
-### Agent: Re-parse Broken Encounter Logs After Parser Fixes
-Many encounters had wrong result detection when the bulk of the ~17,900 logs were imported.
-The parser has since been fixed for 20+ encounters (`91f2d16`, `074013e`, `dfaf1b0`, `c9d2064`,
-`99fafe4`, `1c5c3b4`), but the already-imported records still carry the old results.
+### Agent: Encounter Result Accuracy Audit (post-reparse)
+`gorrik reparse` was run against both local directories on 2026-08-30 after the parser fixes
+(`91f2d16`, `074013e`, `dfaf1b0`, `c9d2064`, `99fafe4`, `1c5c3b4`). DB success total went from
+~7,300 to 9,093; unknowns are now only River of Souls (161), Ai, Keeper of the Peak (62), and
+genuinely-unidentified triggers (88). Broad accuracy is much improved.
 
-**Mechanism (shipped):** `gorrik reparse` re-parses local files and updates matching records
-in place — no delete, no re-upload, `dps_report_url` / favourites / tags preserved. Run
-`gorrik reparse --dir <path> --dry-run` first, then without `--dry-run`, once per local
-directory (`F:\arcdps_logs` and the live `arcdps.cbtlogs`).
+**Still open:**
+- **Aetherblade Hideout** — undercounts (DB 62 success vs ALM 70). See item below.
+- **Ai, Keeper of the Peak** (62 logs, all `unknown`): needs the encounter split into
+  Elemental / Dark / Both Phases with phase-based detection.
+- **River of Souls** (161 logs, all `unknown`): it is a Wing-5 escort event, not a boss kill —
+  `unknown` may be the correct terminal state; decide whether to model success at all.
+- **General audit**: compare every encounter's DB success count against arcdps Logs Manager and
+  open items for any still off. Known checked-good (exact match, unchanged log counts): Guardian's
+  Glade 1, Kanaxai 7, Eparch 9.
 
-**Still open — encounters that need parser work, not just a re-parse:**
-- **Statues of Grenth**: split into Broken King / Eater of Souls / Statue of Darkness landed
-  (`dfaf1b0`); verify counts after re-parse.
-- **Ai, Keeper of the Peak** (~62 logs, `resultUnknown`): needs the encounter split into
-  Elemental / Dark / Both Phases and phase-based detection.
-- **Xunlai Jade Junkyard**, **Harvest Temple**: have `resultByTeamChange` / skill-based
-  detection now; verify against ground truth after re-parse and add custom logic if still off.
+### Agent: Aetherblade Hideout Undercounts Kills
+DB shows 62 successes for Aetherblade Hideout; arcdps Logs Manager shows 70 (out of ~151 vs our
+150 logs). Confirmed miss: `20260604-231716.zevtc` — dps.report reports `success: true`, we
+record `failure`.
 
-Confirmed kill counts from arcdps Logs Manager (ground truth — may be stale, re-audit after
-the re-parse run):
-
-| Encounter | DB logs | True kills | Notes |
-|---|---|---|---|
-| Soulless Horror | 1,146 | 174 | gadget fix — verify after re-import |
-| Deimos | 720 | 237 | gadget fix — verify after re-import |
-| Xera | 290 | 141 | phase-1 fix — high confidence |
-| Kaineng Overlook | 145 | 55 | gadget fix — verify after re-import |
-| Xunlai Jade Junkyard | 141 | 55 | needs custom detection (team transformation at 50%) |
-| Guardian's Glade | 93 | 1 | gadget fix — verify after re-import |
-| Harvest Temple | 88 | 34 | currently `resultUnknown`; kills exist but need custom detection |
-| Kanaxai | 27 | 7 | gadget fix — verify after re-import |
-| Eparch | 19 | 9 | gadget fix — verify after re-import |
-
-**After the re-parse run:** re-audit every encounter against arcdps Logs Manager, update the
-table above, and open follow-up items for any encounter still wrong.
+- We use `resultByBuff895` (Determined 895 applied to Mai Trin, species 24033), which is
+  **exactly** what EVTCAnalytics uses (`AgentBuffGainedDeterminer(maiTrin, Determined895)`), so
+  the encounter definition is right — the miss is in our EVTC event handling.
+- In the confirmed-miss log Mai Trin has only ~0.8% uptime of buff 895 (one late application)
+  and ~72% of buff 762; she stays present (not despawned) through the Echo of Scarlet Briar
+  phase. Our `scNormal` buff-apply check (`item.buff != 0 && buffRemove == 0 && isActivation == 0
+  && allBossAddrs[dstAgent]`) is not catching that late 895 application.
+- Misses are spread across both the pre- and post-2026-04-14 game update; not a clean version
+  cutoff.
+- Needs a sample kill `.zevtc` to inspect the raw 895 events and Mai Trin's agent addresses —
+  likely address-set or an EVTC field nuance on the final buff apply.
 
 ### Agent: Fix `gorrik setup` Paste Doubling on Windows
 When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
