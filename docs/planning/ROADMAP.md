@@ -73,30 +73,6 @@ deliver pasted text both as a bracketed paste event and as individual keystrokes
   on Windows, or add a `--no-tui` flag
 - Until fixed, workaround is to edit `%APPDATA%\gorrik\gorrik.toml` directly
 
-### Agent: `gorrik status` and `gorrik sync`
-The CLI has one verb per operation (`import`, `import-dps-urls`, `backfill-dps`), each with its
-own flags. These run infrequently enough that the flags never become second nature, and until
-`cobra.NoArgs` was added a bare positional path was silently ignored in favour of the configured
-directory. Two additions collapse the common cases:
-
-**`gorrik status`** — also the bare `gorrik` output, replacing the help dump:
-- config path and whether it loaded
-- resolved log dir: exists, file count, size on disk
-- DB: total indexed logs, newest `logged_at`
-- "behind by N": local files not yet indexed — needs a new `POST /api/logs/missing` taking a
-  filename list and returning the unindexed subset
-- dps.report: count of indexed logs still missing a URL
-- a suggested next command
-
-**`gorrik sync`** — the catch-up flow as one verb:
-- `import` (configured dir) → `import-dps-urls` (if a cache path is set or found at the default
-  location) → `backfill-dps`
-- flags: `--dry-run`, `--skip-dps`
-- config addition: `[arcdps_log_manager] cache_path`, auto-detected from
-  `%APPDATA%\arcdps Log Manager\LogDataCache.json`, so `sync` needs no arguments
-
-This is the first step; the Local Operations UI below builds on it.
-
 ### Agent + Web: Local Operations UI
 The Windows terminal is a poor management surface, and the tool Gorrik replaces (arcdps Log
 Manager) has a local UI. A `gorrik ui` command would serve a localhost web app that:
@@ -112,6 +88,9 @@ native window and native directory dialogs — a ~15 MB binary over the OS webvi
 
 A menu-driven TUI (`bubbletea`) was considered as a lighter alternative but is a strict subset of
 this; skip it if the local UI is built.
+
+Builds on `gorrik status` / `gorrik sync` (shipped) and the `POST /api/logs/missing` endpoint —
+the prune panel extends that with an R2 HeadObject check per local log.
 
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
@@ -165,3 +144,17 @@ exactly once — is the right place to fan out to Wingman alongside R2 and dps.r
 - opt-in only: uploading shares squadmate account names with a public aggregator
 
 Depends on the local-log/R2 reconciliation from the Local Operations UI work.
+
+---
+
+## Shipped
+
+### `gorrik status` and `gorrik sync` (2026-08-29, PR #1)
+- `gorrik status` (also bare `gorrik`): config path, resolved log dir + file count + size,
+  Log Manager cache location, DB totals + newest `logged_at`, "behind by N" local logs not yet
+  indexed, and a suggested next command.
+- `gorrik sync`: `import` → `import-dps-urls` → `backfill-dps` as one verb, with `--dry-run` and
+  `--skip-dps`.
+- `[arcdps_log_manager] cache_path` config, auto-detected at
+  `%LOCALAPPDATA%\ArcdpsLogManager\LogDataCache.json`.
+- API: `GET /api/logs/stats`, `POST /api/logs/missing` (both Bearer-authed).
