@@ -63,6 +63,14 @@ type LogEntry struct {
 	DpsReportURL *string `json:"dpsReportUrl"`
 }
 
+// ReparseResult is returned by PATCH /api/logs/reparse.
+type ReparseResult struct {
+	Status        string `json:"status"` // "updated" | "not_found"
+	ResultChanged bool   `json:"resultChanged"`
+	OldResult     string `json:"oldResult"`
+	NewResult     string `json:"newResult"`
+}
+
 // Stats is the summary returned by GET /api/logs/stats.
 type Stats struct {
 	Total            int        `json:"total"`
@@ -168,6 +176,68 @@ func (c *Client) PatchLogDpsURL(ctx context.Context, logID, dpsURL string) error
 		return fmt.Errorf("PATCH /logs/%s: server returned %s", logID, resp.Status)
 	}
 	return nil
+}
+
+// reparseRequest is the JSON body sent to PATCH /api/logs/reparse.
+type reparseRequest struct {
+	Filename      string    `json:"filename"`
+	EncounterID   string    `json:"encounter_id"`
+	EncounterName string    `json:"encounter_name"`
+	Category      string    `json:"category"`
+	Subcategory   string    `json:"subcategory"`
+	Result        string    `json:"result"`
+	Mode          string    `json:"mode"`
+	DurationMs    int64     `json:"duration_ms"`
+	LoggedAt      time.Time `json:"logged_at"`
+	DryRun        bool      `json:"dry_run"`
+}
+
+// ReparseLog re-sends parsed metadata for an existing log (matched by base
+// filename) so the server can re-apply parser output in place. If dryRun is
+// true the server reports what would change without writing.
+func (c *Client) ReparseLog(ctx context.Context, localPath string, meta *parser.LogMetadata, dryRun bool) (*ReparseResult, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("api.url not configured")
+	}
+
+	body, err := json.Marshal(reparseRequest{
+		Filename:      filepath.Base(localPath),
+		EncounterID:   fmt.Sprintf("%d", meta.EncounterID),
+		EncounterName: meta.EncounterName,
+		Category:      meta.Category,
+		Subcategory:   meta.Subcategory,
+		Result:        meta.Result,
+		Mode:          meta.Mode,
+		DurationMs:    meta.DurationMs,
+		LoggedAt:      meta.LoggedAt,
+		DryRun:        dryRun,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.baseURL+"/logs/reparse", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("PATCH /logs/reparse: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("PATCH /logs/reparse returned %s", resp.Status)
+	}
+
+	var out ReparseResult
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	return &out, nil
 }
 
 // FetchStats returns summary counts from GET /api/logs/stats.

@@ -42,6 +42,7 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(importCmd)
+	rootCmd.AddCommand(reparseCmd)
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(backfillDpsCmd)
 	rootCmd.AddCommand(importDpsUrlsCmd)
