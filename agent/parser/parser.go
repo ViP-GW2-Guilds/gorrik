@@ -38,7 +38,7 @@ const (
 	scExitCombat   uint8 = 2
 	scChangeDead   uint8 = 4
 	scSpawn        uint8 = 6
-	scHealthUpdate uint8 = 8  // dstAgent = health fraction * 10000 (10000 = 100%)
+	scHealthUpdate uint8 = 8 // dstAgent = health fraction * 10000 (10000 = 100%)
 	scLogStart     uint8 = 9
 	scLogEnd       uint8 = 10
 	scMaxHealth    uint8 = 12
@@ -47,6 +47,9 @@ const (
 	scTeamChange   uint8 = 22 // agent switches affiliation (e.g. boss surrenders); dstAgent = new team ID
 	scAttackTarget uint8 = 23 // links attack target to parent gadget
 	scTargetable   uint8 = 24 // agent becomes targetable/untargetable (dstAgent != 0 = targetable)
+	// arcdps builds from ~2026-05-01 emit buff applications as this dedicated
+	// statechange instead of a normal (statechange 0) event with buff != 0.
+	scBuffApply uint8 = 69
 )
 
 // result field values for scNormal (damage) events.
@@ -211,13 +214,13 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	// ── Combat event scan ─────────────────────────────────────────────────────
 	var (
-		logStartTime    int64
-		logEndTime      int64
-		logStartUnix    int32
-		bossDeaths      = make(map[uint64]bool) // includes killing blows
-		rewardID        uint64
-		emboldenedCount = make(map[uint64]int) // agent address → stack count
-		maxHealthByAddr = make(map[uint64]int64)
+		logStartTime        int64
+		logEndTime          int64
+		logStartUnix        int32
+		bossDeaths          = make(map[uint64]bool) // includes killing blows
+		rewardID            uint64
+		emboldenedCount     = make(map[uint64]int) // agent address → stack count
+		maxHealthByAddr     = make(map[uint64]int64)
 		determinedOnBoss    bool // Determined (895) applied to main boss (not any agent)
 		determinedOnBoss762 bool // Determined (762) applied to main boss
 
@@ -242,6 +245,21 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	hasQuickplay := skillIDs[skillQuickplayBoost] || skillIDs[skillQuickplayMoral]
 	hasEmboldened := skillIDs[skillEmboldened]
+
+	// Determined applied to a main boss address signals success for some encounters.
+	// Checking dstAgent (the recipient) avoids false positives from Determined applied
+	// to players or other agents during mechanics.
+	checkDeterminedOnBoss := func(it combatItem) {
+		if it.isActivation != 0 || !allBossAddrs[it.dstAgent] {
+			return
+		}
+		if it.skillID == skillDetermined895 {
+			determinedOnBoss = true
+		}
+		if it.skillID == skillDetermined762 {
+			determinedOnBoss762 = true
+		}
+	}
 
 	for r.remaining() >= 64 {
 		var item combatItem
@@ -313,17 +331,12 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			if item.result == resultKillingBlow && allBossAddrs[item.dstAgent] {
 				bossDeaths[item.dstAgent] = true
 			}
-			// Determined buff applied to the boss — signals success for some encounters.
-			// Check dstAgent (recipient) against boss addresses to avoid false positives from
-			// Determined being applied to players or other agents during mechanics.
-			if item.buff != 0 && item.buffRemove == 0 && item.isActivation == 0 && allBossAddrs[item.dstAgent] {
-				if item.skillID == skillDetermined895 {
-					determinedOnBoss = true
-				}
-				if item.skillID == skillDetermined762 {
-					determinedOnBoss762 = true
-				}
+			// Legacy buff application (pre-2026-05-01 arcdps): statechange 0 with buff != 0.
+			if item.buff != 0 && item.buffRemove == 0 {
+				checkDeterminedOnBoss(item)
 			}
+		case scBuffApply:
+			checkDeterminedOnBoss(item)
 		}
 	}
 
@@ -660,14 +673,14 @@ func (r *byteReader) readCombatItemRev1() combatItem {
 	item.srcAgent = r.readU64()
 	item.dstAgent = r.readU64()
 	item.value = r.readI32()
-	r.skip(4)              // buff_dmg
-	r.skip(4)              // overstack_value (uint32)
+	r.skip(4) // buff_dmg
+	r.skip(4) // overstack_value (uint32)
 	item.skillID = r.readU32()
-	r.skip(2)              // src_instid
-	r.skip(2)              // dst_instid
-	r.skip(2)              // src_master_instid
-	r.skip(2)              // dst_master_instid
-	r.skip(1)              // iff
+	r.skip(2) // src_instid
+	r.skip(2) // dst_instid
+	r.skip(2) // src_master_instid
+	r.skip(2) // dst_master_instid
+	r.skip(1) // iff
 	item.buff = r.readU8()
 	item.result = r.readU8()
 	item.isActivation = r.readU8()
