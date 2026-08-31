@@ -54,6 +54,22 @@ this; skip it if the local UI is built.
 Builds on `gorrik status` / `gorrik sync` (shipped) and the `POST /api/logs/missing` endpoint —
 the prune panel extends that with an R2 HeadObject check per local log.
 
+### Agent: Sign the Windows Binary
+Unsigned `gorrik.exe` builds get false-positived by Windows Defender (heuristics flag the
+Service Control Manager calls behind `gorrik service`, plus the usual static-Go + `net/http`
+pattern). It is non-deterministic build-to-build and has cost real time — on 2026-08-30 a build
+was quarantined repeatedly, downloads blocked, and a folder exclusion was the only way through.
+
+- Get an Authenticode code-signing certificate. An OV cert still gets a SmartScreen reputation
+  ramp; an EV cert clears SmartScreen immediately but is more expensive and needs a hardware
+  token / cloud HSM.
+- Sign in CI (`signtool` / `osslsigncode`) as part of the release build, not by hand.
+- Interim mitigations if signing is deferred: ship a `.zip` (the download is not a PE, so it is
+  not blocked mid-transfer), publish the SHA-256 with each build, and document the folder
+  exclusion. `-trimpath -ldflags="-s -w"` changes the fingerprint but does not reliably help.
+- Also submit false positives to Microsoft (`microsoft.com/wdsi/filesubmission`) — slow, and
+  only fixes one hash at a time.
+
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
 intended richer view:
