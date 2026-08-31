@@ -8,32 +8,21 @@
 ~7,300 to 9,093; unknowns are now only River of Souls (161), Ai, Keeper of the Peak (62), and
 genuinely-unidentified triggers (88). Broad accuracy is much improved.
 
+**Fixed since:** the buff-statechange bug below — needs another `gorrik reparse` run once the
+fix deploys, then re-audit Aetherblade Hideout, Soulless Horror, Eparch, Guardian's Glade and
+Kanaxai (all use buff-based detection and undercounted on post-2026-05-01 arcdps logs).
+
 **Still open:**
-- **Aetherblade Hideout** — undercounts (DB 62 success vs ALM 70). See item below.
 - **Ai, Keeper of the Peak** (62 logs, all `unknown`): needs the encounter split into
   Elemental / Dark / Both Phases with phase-based detection.
 - **River of Souls** (161 logs, all `unknown`): it is a Wing-5 escort event, not a boss kill —
   `unknown` may be the correct terminal state; decide whether to model success at all.
+- **Harvest Temple** (`resultBySkillPresent`, skill 63896): test fixture `20260526-200101`
+  expects `unknown`, parser returns `success`, fixture is labelled `failure`. In that log skill
+  63896 fires 20 times — either it is not victory-exclusive (detection false positive) or the
+  fixture's `actualResult` is mislabelled. Needs ground-truth from ALM for that date/time.
 - **General audit**: compare every encounter's DB success count against arcdps Logs Manager and
-  open items for any still off. Known checked-good (exact match, unchanged log counts): Guardian's
-  Glade 1, Kanaxai 7, Eparch 9.
-
-### Agent: Aetherblade Hideout Undercounts Kills
-DB shows 62 successes for Aetherblade Hideout; arcdps Logs Manager shows 70 (out of ~151 vs our
-150 logs). Confirmed miss: `20260604-231716.zevtc` — dps.report reports `success: true`, we
-record `failure`.
-
-- We use `resultByBuff895` (Determined 895 applied to Mai Trin, species 24033), which is
-  **exactly** what EVTCAnalytics uses (`AgentBuffGainedDeterminer(maiTrin, Determined895)`), so
-  the encounter definition is right — the miss is in our EVTC event handling.
-- In the confirmed-miss log Mai Trin has only ~0.8% uptime of buff 895 (one late application)
-  and ~72% of buff 762; she stays present (not despawned) through the Echo of Scarlet Briar
-  phase. Our `scNormal` buff-apply check (`item.buff != 0 && buffRemove == 0 && isActivation == 0
-  && allBossAddrs[dstAgent]`) is not catching that late 895 application.
-- Misses are spread across both the pre- and post-2026-04-14 game update; not a clean version
-  cutoff.
-- Needs a sample kill `.zevtc` to inspect the raw 895 events and Mai Trin's agent addresses —
-  likely address-set or an EVTC field nuance on the final buff apply.
+  open items for any still off.
 
 ### Agent: Fix `gorrik setup` Paste Doubling on Windows
 When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
@@ -121,6 +110,14 @@ Depends on the local-log/R2 reconciliation from the Local Operations UI work.
 ---
 
 ## Shipped
+
+### Parser: arcdps BuffApply statechange (2026-08-30, PR #5)
+arcdps builds from ~2026-05-01 emit buff applications as a dedicated statechange
+(`BuffApply = 69`) instead of a normal (statechange 0) event with `buff != 0`. `resultByBuff895`
+/ `resultByBuff762` only looked at statechange-0 events, so every Determined-on-boss success
+signal was missed on logs from newer arcdps builds — affecting Aetherblade Hideout, Soulless
+Horror, Eparch (895) and Guardian's Glade, Kanaxai (762). Root-caused with the
+`20260604-231716.zevtc` sample (Mai Trin's kill signal was a lone `BuffApply` at fight end).
 
 ### `gorrik reparse` (2026-08-30, PR #3)
 - Re-parses local files and updates matching DB records in place (result, mode, duration,
