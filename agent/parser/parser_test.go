@@ -72,6 +72,17 @@ var fixtures = []fixture{
 		minPlayers:     1,
 	},
 	{
+		// Alternate trigger id 26257; an aborted pull that arcdps Log Manager omits.
+		file:           "20240615-231736.zevtc",
+		encounter:      "Eparch",
+		category:       "fractal",
+		subcategory:    "Lonely Tower",
+		actualResult:   "failure",
+		expectedResult: "failure",
+		mode:           "normal",
+		minPlayers:     1,
+	},
+	{
 		file:           "20250301-224352.zevtc",
 		encounter:      "Eparch",
 		category:       "fractal",
