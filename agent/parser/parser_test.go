@@ -52,6 +52,16 @@ var fixtures = []fixture{
 		minPlayers:     1,
 	},
 	{
+		file:           "20260509-151251.zevtc",
+		encounter:      "Spirit Race",
+		category:       "raid",
+		subcategory:    "Spirit Vale (Wing 1)",
+		actualResult:   "success",
+		expectedResult: "success",
+		mode:           "normal",
+		minPlayers:     1,
+	},
+	{
 		file:           "20260602-205937.zevtc",
 		encounter:      "Voice of the Fallen and Claw of the Fallen",
 		category:       "strike",

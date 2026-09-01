@@ -218,8 +218,8 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		logEndTime          int64
 		logStartUnix        int32
 		bossDeaths          = make(map[uint64]bool) // includes killing blows
-		rewardID            uint64
-		emboldenedCount     = make(map[uint64]int) // agent address → stack count
+		rewardIDs           = make(map[uint64]bool) // all reward IDs seen (a log may emit several)
+		emboldenedCount     = make(map[uint64]int)  // agent address → stack count
 		maxHealthByAddr     = make(map[uint64]int64)
 		determinedOnBoss    bool // Determined (895) applied to main boss (not any agent)
 		determinedOnBoss762 bool // Determined (762) applied to main boss
@@ -276,7 +276,7 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		case scLogEnd:
 			logEndTime = item.time
 		case scReward:
-			rewardID = item.dstAgent
+			rewardIDs[item.dstAgent] = true
 		case scChangeDead:
 			bossDeaths[item.srcAgent] = true
 		case scHealthUpdate:
@@ -349,7 +349,7 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 	// ── Derived fields ────────────────────────────────────────────────────────
 	mode := detectMode(enc, hasQuickplay, hasEmboldened, maxEmbStacks, maxHealthByAddr, skillIDs)
-	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardID, determinedOnBoss, determinedOnBoss762, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn, npcSpawnedForResult, resultSkillPresent)
+	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardIDs, determinedOnBoss, determinedOnBoss762, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn, npcSpawnedForResult, resultSkillPresent)
 
 	var duration int64
 	if logEndTime > logStartTime {
@@ -420,7 +420,7 @@ func detectMode(
 func detectResult(
 	enc resolvedEncounter,
 	bossDeaths, bossTeamChangedAfterBelow50 map[uint64]bool,
-	rewardID uint64,
+	rewardIDs map[uint64]bool,
 	determinedOnBoss bool,
 	determinedOnBoss762 bool,
 	gadgetAttackTargets map[uint64][]uint64,
@@ -442,7 +442,7 @@ func detectResult(
 		return "failure"
 
 	case resultByReward:
-		if rewardID == enc.rewardID {
+		if rewardIDs[enc.rewardID] {
 			return "success"
 		}
 		return "failure"
