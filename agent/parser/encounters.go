@@ -13,6 +13,7 @@ const (
 	resultByExitCombatAfterSpawn                       // boss exits combat; if ExitCombatMinDelay > 0, must be ≥ that many ms after spawning
 	resultByNPCSpawn                                   // a specific NPC species emits a spawn event during combat
 	resultBySkillPresent                               // a specific skill ID appears in the log's skill list
+	resultAiKeeperOfThePeak                            // phase-split detection, see resolveAiKeeperOfThePeak
 	resultUnknown                                      // parser cannot detect result for this encounter
 )
 
@@ -99,6 +100,11 @@ func buildEncounterTable() map[uint16]*encounterDef {
 
 	// Wing 1 — Spirit Vale
 	add(&encounterDef{Name: "Vale Guardian", Category: "raid", Subcategory: "Spirit Vale (Wing 1)", MainSpecies: []int{15438}}, 15438)
+	// Spirit Race: trigger is the Ethereal Barrier gadget (47188); success is a Reward event (404).
+	add(&encounterDef{
+		Name: "Spirit Race", Category: "raid", Subcategory: "Spirit Vale (Wing 1)",
+		ResultKind: resultByReward, RewardID: 404,
+	}, 47188)
 	add(&encounterDef{Name: "Gorseval the Multifarious", Category: "raid", Subcategory: "Spirit Vale (Wing 1)", MainSpecies: []int{15429}}, 15429)
 	add(&encounterDef{Name: "Sabetha the Saboteur", Category: "raid", Subcategory: "Spirit Vale (Wing 1)", MainSpecies: []int{15375}}, 15375)
 
@@ -158,7 +164,8 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	add(&encounterDef{Name: "Soulless Horror", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19767}, ResultKind: resultByBuff895}, 19767)
 	add(&encounterDef{
 		Name: "River of Souls", Category: "raid", Subcategory: "Hall of Chains (Wing 5)",
-		ResultKind: resultUnknown, // Desmina does not die; reward-based but no fixed reward ID
+		// Desmina does not die; completing the escort emits a Reward event (id 771).
+		ResultKind: resultByReward, RewardID: 771,
 	}, 19828)
 	// "Statues of Grenth" is actually three separate encounters in arcdps logs.
 	// Eyes: either eye (Judgment=19651, Fate=19844) dying counts as success (AnyCombinedResultDeterminer).
@@ -289,11 +296,14 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	add(&encounterDef{Name: "Artsariiv", Category: "fractal", Subcategory: "Shattered Observatory", MainSpecies: []int{17949}, CMKind: cmAlways}, 17949)
 	add(&encounterDef{Name: "Arkk", Category: "fractal", Subcategory: "Shattered Observatory", MainSpecies: []int{17759}, CMKind: cmAlways}, 17759)
 
-	// Sunqua Peak
+	// Sunqua Peak. Ai has two phases (Elemental / "day", then Dark / "night") with a
+	// shared enemy; a group may practise either in isolation. The parser splits the
+	// encounter into three by which phases the log covers — see resolveAiKeeperOfThePeak.
 	add(&encounterDef{
 		Name: "Ai, Keeper of the Peak", Category: "fractal", Subcategory: "Sunqua Peak",
-		ResultKind: resultUnknown, // phase-based; complex detection
-		CMKind:     cmAlways,
+		MainSpecies: []int{23254},
+		ResultKind:  resultAiKeeperOfThePeak,
+		CMKind:      cmAlways,
 	}, 23254)
 
 	// Silent Surf
@@ -305,10 +315,11 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	// Eparch applies Determined (895) on successful defeat rather than emitting ChangeDead.
 	add(&encounterDef{
 		Name: "Eparch", Category: "fractal", Subcategory: "Lonely Tower",
+		// 26257 is an alternate trigger seen on some logs (agent list still contains Eparch, 26231).
 		MainSpecies: []int{26231},
 		ResultKind:  resultByBuff895,
 		CMKind:      cmByHealth, CMValue: 21_000_000,
-	}, 26231)
+	}, 26231, 26257)
 
 	// Kinfall
 	add(&encounterDef{
@@ -316,6 +327,17 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		MainSpecies: []int{27010},
 		CMKind:      cmBySkill, CMValue: 76339,
 	}, 27010)
+
+	// ── Festival ───────────────────────────────────────────────────────────────
+
+	// Freezie signals success via Determined (762), like the fractal Determined bosses.
+	add(&encounterDef{Name: "Freezie", Category: "other", Subcategory: "Festival", MainSpecies: []int{21333}, ResultKind: resultByBuff762}, 21333)
+
+	// ── Non-instanced logs ─────────────────────────────────────────────────────
+	// arcdps writes a trigger/boss species ID of 1 for World vs World logs and 2 for
+	// generic map logs. Neither has a win/loss result.
+	add(&encounterDef{Name: "World vs World", Category: "other", Subcategory: "World vs World", ResultKind: resultUnknown}, 1)
+	add(&encounterDef{Name: "Map", Category: "other", Subcategory: "Map", ResultKind: resultUnknown}, 2)
 
 	// ── Training Area ──────────────────────────────────────────────────────────
 
