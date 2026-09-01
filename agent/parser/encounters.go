@@ -13,6 +13,7 @@ const (
 	resultByExitCombatAfterSpawn                       // boss exits combat; if ExitCombatMinDelay > 0, must be ≥ that many ms after spawning
 	resultByNPCSpawn                                   // a specific NPC species emits a spawn event during combat
 	resultBySkillPresent                               // a specific skill ID appears in the log's skill list
+	resultAiKeeperOfThePeak                            // phase-split detection, see resolveAiKeeperOfThePeak
 	resultUnknown                                      // parser cannot detect result for this encounter
 )
 
@@ -295,11 +296,14 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	add(&encounterDef{Name: "Artsariiv", Category: "fractal", Subcategory: "Shattered Observatory", MainSpecies: []int{17949}, CMKind: cmAlways}, 17949)
 	add(&encounterDef{Name: "Arkk", Category: "fractal", Subcategory: "Shattered Observatory", MainSpecies: []int{17759}, CMKind: cmAlways}, 17759)
 
-	// Sunqua Peak
+	// Sunqua Peak. Ai has two phases (Elemental / "day", then Dark / "night") with a
+	// shared enemy; a group may practise either in isolation. The parser splits the
+	// encounter into three by which phases the log covers — see resolveAiKeeperOfThePeak.
 	add(&encounterDef{
 		Name: "Ai, Keeper of the Peak", Category: "fractal", Subcategory: "Sunqua Peak",
-		ResultKind: resultUnknown, // phase-based; complex detection
-		CMKind:     cmAlways,
+		MainSpecies: []int{23254},
+		ResultKind:  resultAiKeeperOfThePeak,
+		CMKind:      cmAlways,
 	}, 23254)
 
 	// Silent Surf

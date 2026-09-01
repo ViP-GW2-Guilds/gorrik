@@ -49,7 +49,8 @@ const (
 	scTargetable   uint8 = 24 // agent becomes targetable/untargetable (dstAgent != 0 = targetable)
 	// arcdps builds from ~2026-05-01 emit buff applications as this dedicated
 	// statechange instead of a normal (statechange 0) event with buff != 0.
-	scBuffApply uint8 = 69
+	scBuffApply      uint8 = 69
+	scAnimationStart uint8 = 67
 )
 
 // result field values for scNormal (damage) events.
@@ -62,6 +63,7 @@ const (
 	skillQuickplayMoral uint32 = 79492 // raids
 	skillDetermined762  uint32 = 762
 	skillDetermined895  uint32 = 895
+	skillAiDarkEarly    uint32 = 61356 // cast/animated early in Ai's Dark phase
 )
 
 // Profession names indexed by (prof field value − 1).
@@ -241,10 +243,18 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 
 		// For resultByNPCSpawn: success when the designated NPC emits a spawn event.
 		npcSpawnedForResult bool
+
+		// For resultAiKeeperOfThePeak (see resolveAiKeeperOfThePeak):
+		aiDarkStarted   bool         // skill 61356 cast/animated → Dark phase reached
+		aiHealthFrac    int64 = 9999 // last Ai health fraction, out of 10000
+		ai895BeforeDark bool         // non-initial Determined (895) on Ai before Dark started
+		ai895AfterDark  bool         // non-initial Determined (895) on Ai after Dark started
+		ai895Below90    bool         // non-initial Determined (895) on Ai while Ai health < 90%
 	)
 
 	hasQuickplay := skillIDs[skillQuickplayBoost] || skillIDs[skillQuickplayMoral]
 	hasEmboldened := skillIDs[skillEmboldened]
+	isAi := enc.resultKind == resultAiKeeperOfThePeak
 
 	// Determined applied to a main boss address signals success for some encounters.
 	// Checking dstAgent (the recipient) avoids false positives from Determined applied
@@ -255,6 +265,16 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 		}
 		if it.skillID == skillDetermined895 {
 			determinedOnBoss = true
+			if isAi {
+				if aiDarkStarted {
+					ai895AfterDark = true
+				} else {
+					ai895BeforeDark = true
+				}
+				if aiHealthFrac < 9000 {
+					ai895Below90 = true
+				}
+			}
 		}
 		if it.skillID == skillDetermined762 {
 			determinedOnBoss762 = true
@@ -281,8 +301,17 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			bossDeaths[item.srcAgent] = true
 		case scHealthUpdate:
 			// dstAgent = health fraction * 10000; 5000 = 50%.
-			if allBossAddrs[item.srcAgent] && item.dstAgent <= 5000 {
-				bossHealthBelow50[item.srcAgent] = true
+			if allBossAddrs[item.srcAgent] {
+				if item.dstAgent <= 5000 {
+					bossHealthBelow50[item.srcAgent] = true
+				}
+				if isAi {
+					aiHealthFrac = int64(item.dstAgent)
+				}
+			}
+		case scAnimationStart:
+			if isAi && item.skillID == skillAiDarkEarly {
+				aiDarkStarted = true
 			}
 		case scTeamChange:
 			// Success = boss health dropped below 50% first, then non-zero team change.
@@ -336,6 +365,9 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 			if item.buff != 0 && item.buffRemove == 0 {
 				checkDeterminedOnBoss(item)
 			}
+			if isAi && item.isActivation != 0 && item.skillID == skillAiDarkEarly {
+				aiDarkStarted = true
+			}
 		case scBuffApply:
 			checkDeterminedOnBoss(item)
 		}
@@ -351,6 +383,12 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 	// ── Derived fields ────────────────────────────────────────────────────────
 	mode := detectMode(enc, hasQuickplay, hasEmboldened, maxEmbStacks, maxHealthByAddr, skillIDs)
 	result := detectResult(enc, bossDeaths, bossTeamChangedAfterBelow50, rewardIDs, determinedOnBoss, determinedOnBoss762, gadgetAttackTargets, seenUntargetableAfterTargetable, bossExitCombatAfterSpawn, npcSpawnedForResult, resultSkillPresent)
+
+	if isAi {
+		variant, aiResult := resolveAiKeeperOfThePeak(skillIDs[skillAiDarkEarly], ai895BeforeDark, ai895AfterDark, ai895Below90)
+		enc.Name += " (" + variant + ")"
+		result = aiResult
+	}
 
 	var duration int64
 	if logEndTime > logStartTime {
@@ -534,6 +572,40 @@ func detectResult(
 	}
 
 	return "unknown"
+}
+
+// resolveAiKeeperOfThePeak classifies a Sunqua Peak log into one of the three
+// arcdps Log Manager variants and decides its result, following the logic in
+// EVTCAnalytics (EncounterIdentifier / EncounterDataProvider):
+//
+//   - no skill 61356 → the group never reached the Dark phase: "Elemental".
+//     Success = Determined (895) applied to Ai while Ai health < 90%
+//     (a short Determined is applied at the very start and must be ignored).
+//   - skill 61356 present, a non-initial Determined on Ai before it → both
+//     phases are in the log: "Dark and Light". Success = Determined on Ai
+//     after the Dark phase started.
+//   - skill 61356 present, none before it → the log begins in the Dark phase:
+//     "Dark". Success = any non-initial Determined on Ai.
+func resolveAiKeeperOfThePeak(has61356, det895BeforeDark, det895AfterDark, det895Below90 bool) (variant, result string) {
+	result = "failure"
+	switch {
+	case !has61356:
+		variant = "Elemental"
+		if det895Below90 {
+			result = "success"
+		}
+	case det895BeforeDark:
+		variant = "Dark and Light"
+		if det895AfterDark {
+			result = "success"
+		}
+	default:
+		variant = "Dark"
+		if det895AfterDark {
+			result = "success"
+		}
+	}
+	return variant, result
 }
 
 func extractPlayers(agents []rawAgent) []PlayerEntry {

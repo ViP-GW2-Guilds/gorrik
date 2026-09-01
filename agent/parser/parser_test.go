@@ -112,6 +112,37 @@ var fixtures = []fixture{
 		mode:           "normal",
 		minPlayers:     1,
 	},
+	// Ai, Keeper of the Peak — three variants, success + failure each.
+	{
+		file: "20260624-190911.zevtc", encounter: "Ai, Keeper of the Peak (Elemental)",
+		category: "fractal", subcategory: "Sunqua Peak",
+		actualResult: "failure", expectedResult: "failure", mode: "challenge", minPlayers: 1,
+	},
+	{
+		file: "20250505-203958.zevtc", encounter: "Ai, Keeper of the Peak (Elemental)",
+		category: "fractal", subcategory: "Sunqua Peak",
+		actualResult: "success", expectedResult: "success", mode: "challenge", minPlayers: 1,
+	},
+	{
+		file: "20250121-230410.zevtc", encounter: "Ai, Keeper of the Peak (Dark)",
+		category: "fractal", subcategory: "Sunqua Peak",
+		actualResult: "failure", expectedResult: "failure", mode: "challenge", minPlayers: 1,
+	},
+	{
+		file: "20260624-192232.zevtc", encounter: "Ai, Keeper of the Peak (Dark)",
+		category: "fractal", subcategory: "Sunqua Peak",
+		actualResult: "success", expectedResult: "success", mode: "challenge", minPlayers: 1,
+	},
+	{
+		file: "20260624-191810.zevtc", encounter: "Ai, Keeper of the Peak (Dark and Light)",
+		category: "fractal", subcategory: "Sunqua Peak",
+		actualResult: "failure", expectedResult: "failure", mode: "challenge", minPlayers: 1,
+	},
+	{
+		file: "20260624-193148.zevtc", encounter: "Ai, Keeper of the Peak (Dark and Light)",
+		category: "fractal", subcategory: "Sunqua Peak",
+		actualResult: "success", expectedResult: "success", mode: "challenge", minPlayers: 1,
+	},
 	{
 		file:           "20260602-205937.zevtc",
 		encounter:      "Voice of the Fallen and Claw of the Fallen",
