@@ -163,7 +163,8 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	add(&encounterDef{Name: "Soulless Horror", Category: "raid", Subcategory: "Hall of Chains (Wing 5)", MainSpecies: []int{19767}, ResultKind: resultByBuff895}, 19767)
 	add(&encounterDef{
 		Name: "River of Souls", Category: "raid", Subcategory: "Hall of Chains (Wing 5)",
-		ResultKind: resultUnknown, // Desmina does not die; reward-based but no fixed reward ID
+		// Desmina does not die; completing the escort emits a Reward event (id 771).
+		ResultKind: resultByReward, RewardID: 771,
 	}, 19828)
 	// "Statues of Grenth" is actually three separate encounters in arcdps logs.
 	// Eyes: either eye (Judgment=19651, Fate=19844) dying counts as success (AnyCombinedResultDeterminer).
