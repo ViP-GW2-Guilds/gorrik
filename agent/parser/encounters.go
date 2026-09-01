@@ -99,6 +99,11 @@ func buildEncounterTable() map[uint16]*encounterDef {
 
 	// Wing 1 — Spirit Vale
 	add(&encounterDef{Name: "Vale Guardian", Category: "raid", Subcategory: "Spirit Vale (Wing 1)", MainSpecies: []int{15438}}, 15438)
+	// Spirit Race: trigger is the Ethereal Barrier gadget (47188); success is a Reward event (404).
+	add(&encounterDef{
+		Name: "Spirit Race", Category: "raid", Subcategory: "Spirit Vale (Wing 1)",
+		ResultKind: resultByReward, RewardID: 404,
+	}, 47188)
 	add(&encounterDef{Name: "Gorseval the Multifarious", Category: "raid", Subcategory: "Spirit Vale (Wing 1)", MainSpecies: []int{15429}}, 15429)
 	add(&encounterDef{Name: "Sabetha the Saboteur", Category: "raid", Subcategory: "Spirit Vale (Wing 1)", MainSpecies: []int{15375}}, 15375)
 
