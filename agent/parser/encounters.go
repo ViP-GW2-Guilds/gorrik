@@ -317,6 +317,17 @@ func buildEncounterTable() map[uint16]*encounterDef {
 		CMKind:      cmBySkill, CMValue: 76339,
 	}, 27010)
 
+	// ── Festival ───────────────────────────────────────────────────────────────
+
+	// Freezie signals success via Determined (762), like the fractal Determined bosses.
+	add(&encounterDef{Name: "Freezie", Category: "other", Subcategory: "Festival", MainSpecies: []int{21333}, ResultKind: resultByBuff762}, 21333)
+
+	// ── Non-instanced logs ─────────────────────────────────────────────────────
+	// arcdps writes a trigger/boss species ID of 1 for World vs World logs and 2 for
+	// generic map logs. Neither has a win/loss result.
+	add(&encounterDef{Name: "World vs World", Category: "other", Subcategory: "World vs World", ResultKind: resultUnknown}, 1)
+	add(&encounterDef{Name: "Map", Category: "other", Subcategory: "Map", ResultKind: resultUnknown}, 2)
+
 	// ── Training Area ──────────────────────────────────────────────────────────
 
 	add(&encounterDef{Name: "Standard Kitty Golem", Category: "other", Subcategory: "Special Forces Training Area", MainSpecies: []int{16199}}, 16199)
