@@ -310,10 +310,11 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	// Eparch applies Determined (895) on successful defeat rather than emitting ChangeDead.
 	add(&encounterDef{
 		Name: "Eparch", Category: "fractal", Subcategory: "Lonely Tower",
+		// 26257 is an alternate trigger seen on some logs (agent list still contains Eparch, 26231).
 		MainSpecies: []int{26231},
 		ResultKind:  resultByBuff895,
 		CMKind:      cmByHealth, CMValue: 21_000_000,
-	}, 26231)
+	}, 26231, 26257)
 
 	// Kinfall
 	add(&encounterDef{
