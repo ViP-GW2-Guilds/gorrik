@@ -46,11 +46,30 @@ var fixtures = []fixture{
 		encounter:   "Harvest Temple",
 		category:    "strike",
 		subcategory: "End of Dragons",
-		// Kill: skill 63896 cast within ~1s of a Determined (895) apply, and two of
-		// Soo-Won's attack targets complete targetable→untargetable. Original label
-		// was a placeholder from before Harvest Temple result detection existed.
+		// Kill: skill 63896 (lift-off animation) is present. Original label was a
+		// placeholder from before Harvest Temple result detection existed.
 		actualResult:   "success",
 		expectedResult: "success",
+		mode:           "normal",
+		minPlayers:     1,
+	},
+	{
+		file:           "20260807-195510.zevtc",
+		encounter:      "Harvest Temple",
+		category:       "strike",
+		subcategory:    "End of Dragons",
+		actualResult:   "success",
+		expectedResult: "success",
+		mode:           "normal",
+		minPlayers:     1,
+	},
+	{
+		file:           "20260707-205500.zevtc",
+		encounter:      "Harvest Temple",
+		category:       "strike",
+		subcategory:    "End of Dragons",
+		actualResult:   "failure",
+		expectedResult: "failure",
 		mode:           "normal",
 		minPlayers:     1,
 	},
