@@ -2,22 +2,20 @@
 
 ## Active Backlog
 
-### Agent: Encounter Result Accuracy — remaining gaps
-Two `gorrik reparse` passes (2026-08-30/31) plus the parser fixes (`91f2d16`, `074013e`,
-`dfaf1b0`, `c9d2064`, `99fafe4`, `1c5c3b4`, `97318f0`) brought DB success counts to an **exact
-match with arcdps Logs Manager across every audited encounter**. DB is 17,907 logs / 9,117
-success / 311 unknown. What's left:
+### Agent: Encounter Result Accuracy — re-audit after PR #8
+Two `gorrik reparse` passes (2026-08-30/31) plus the parser fixes brought DB success counts to
+an exact match with arcdps Logs Manager across every audited encounter. PR #8 then resolved the
+remaining gaps — the 88 `Unknown` logs (Spirit Race, Freezie, WvW, Map, Lonely Tower alt
+trigger), River of Souls (reward 771), the Ai three-way split (Elemental / Dark / Dark and
+Light), and Harvest Temple — and fixed two bugs: reward-event matching and health-based CM
+detection (8 encounters had 0 challenge-mode logs among 2,252).
 
-- **Ai, Keeper of the Peak** (62 logs, all `unknown`): needs the encounter split into
-  Elemental / Dark / Both Phases with phase-based detection.
-- **River of Souls** (161 logs, all `unknown`): a Wing-5 escort event, not a boss kill —
-  `unknown` may be the correct terminal state; decide whether to model success at all.
-- **Unidentified triggers** (88 logs, `encounter_name = "Unknown"`): triggers with no encounter
-  definition (ids 1, 21333, 26257, 47188). Identify and add defs, or accept as untracked.
-- **Harvest Temple** (`resultBySkillPresent`, skill 63896): test fixture `20260526-200101`
-  expects `unknown`, parser returns `success`, fixture is labelled `failure`. In that log skill
-  63896 fires 20 times — either it is not victory-exclusive (detection false positive) or the
-  fixture's `actualResult` is mislabelled. Needs ground-truth from ALM for that date/time.
+After PR #8 deploys and `gorrik reparse` runs again:
+- confirm the 88 previously-unknown logs land in the right encounters
+- confirm challenge-mode counts appear for Deimos, Samarog, Mursaat Overseer, Aetherblade
+  Hideout, Xunlai Jade Junkyard, Kaineng Overlook, Skorvald, Eparch
+- confirm Twisted Castle failure count drops (reward fix)
+- spot-check the three Ai variants against ALM
 
 ### Agent: Fix `gorrik setup` Paste Doubling on Windows
 When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
