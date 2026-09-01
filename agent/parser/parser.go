@@ -290,8 +290,9 @@ func parseBytes(data []byte) (*LogMetadata, error) {
 				bossTeamChangedAfterBelow50[item.srcAgent] = true
 			}
 		case scMaxHealth:
-			if item.value > 0 {
-				maxHealthByAddr[item.srcAgent] = int64(item.value)
+			// arcdps puts the new max health in dstAgent, not value.
+			if item.dstAgent > 0 {
+				maxHealthByAddr[item.srcAgent] = int64(item.dstAgent)
 			}
 		case scSpawn:
 			if allBossAddrs[item.srcAgent] {
