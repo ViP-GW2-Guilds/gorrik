@@ -42,12 +42,15 @@ var fixtures = []fixture{
 		minPlayers:     1,
 	},
 	{
-		file:           "20260526-200101.zevtc",
-		encounter:      "Harvest Temple",
-		category:       "strike",
-		subcategory:    "End of Dragons",
-		actualResult:   "failure",
-		expectedResult: "unknown", // gadget-based encounter; result detection not yet implemented
+		file:        "20260526-200101.zevtc",
+		encounter:   "Harvest Temple",
+		category:    "strike",
+		subcategory: "End of Dragons",
+		// Kill: skill 63896 cast within ~1s of a Determined (895) apply, and two of
+		// Soo-Won's attack targets complete targetable→untargetable. Original label
+		// was a placeholder from before Harvest Temple result detection existed.
+		actualResult:   "success",
+		expectedResult: "success",
 		mode:           "normal",
 		minPlayers:     1,
 	},
