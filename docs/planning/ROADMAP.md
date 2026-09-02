@@ -2,21 +2,6 @@
 
 ## Active Backlog
 
-### Agent: Encounter Result Accuracy — re-audit after PR #8
-Two `gorrik reparse` passes (2026-08-30/31) plus the parser fixes brought DB success counts to
-an exact match with arcdps Logs Manager across every audited encounter. PR #8 then resolved the
-remaining gaps — the 88 `Unknown` logs (Spirit Race, Freezie, WvW, Map, Lonely Tower alt
-trigger), River of Souls (reward 771), the Ai three-way split (Elemental / Dark / Dark and
-Light), and Harvest Temple — and fixed two bugs: reward-event matching and health-based CM
-detection (8 encounters had 0 challenge-mode logs among 2,252).
-
-After PR #8 deploys and `gorrik reparse` runs again:
-- confirm the 88 previously-unknown logs land in the right encounters
-- confirm challenge-mode counts appear for Deimos, Samarog, Mursaat Overseer, Aetherblade
-  Hideout, Xunlai Jade Junkyard, Kaineng Overlook, Skorvald, Eparch
-- confirm Twisted Castle failure count drops (reward fix)
-- spot-check the three Ai variants against ALM
-
 ### Agent: Fix `gorrik setup` Paste Doubling on Windows
 When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
 causes each field to be doubled in the saved `gorrik.toml`. Root cause: some Windows terminals
@@ -119,6 +104,24 @@ Depends on the local-log/R2 reconciliation from the Local Operations UI work.
 ---
 
 ## Shipped
+
+### Parser: encounter accuracy pass (2026-09-01, PR #8 + #9)
+After a full pass against arcdps Log Manager's parser (EVTCAnalytics), the DB is at 17,907 logs
+/ 9,308 success / **3 unknown** (all WvW — no win/loss) / 1,562 challenge-mode.
+
+- **All previously-unknown logs identified**: Spirit Race (trigger 47188 = Ethereal Barrier
+  gadget, reward 404), Freezie (species 21333, Determined 762), World vs World (trigger 1), Map
+  (trigger 2), Lonely Tower alternate trigger 26257, River of Souls (reward 771).
+- **Ai, Keeper of the Peak** split into three — Elemental / Dark / Dark and Light — classified by
+  skill 61356 presence and Determined (895) event ordering.
+- **`resultByReward`** now matches any reward event, not just the last (a second reward follows
+  the completion reward for Spirit Race / River of Souls).
+- **Health-based challenge-mode detection** was entirely broken: `scMaxHealth` stores the value
+  in `dstAgent`, not `value`. Fixed for Aetherblade Hideout, Mursaat Overseer, Samarog, Xunlai
+  Jade Junkyard (all now correct). Deimos needed a `MainSpecies` for the check; Kaineng Overlook's
+  CM boss is a distinct species (24266) — adding it also fixed CM result detection. Skorvald
+  shows 0 CM, believed correct (no 99CM logs in the archive).
+- **Harvest Temple** result detection (skill 63896 presence) confirmed against a real wipe.
 
 ### Parser: arcdps BuffApply statechange (2026-08-30, PR #5)
 arcdps builds from ~2026-05-01 emit buff applications as a dedicated statechange
