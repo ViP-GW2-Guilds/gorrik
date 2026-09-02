@@ -154,9 +154,12 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	// begins) then untargetable (kill).
 	add(&encounterDef{
 		Name: "Deimos", Category: "raid", Subcategory: "Bastion of the Penitent (Wing 4)",
+		// MainSpecies feeds the challenge-mode health check only; the result comes from
+		// the gadget's attack target. CM Deimos (17154) has 42M health, NM ~22M.
+		MainSpecies:               []int{17154},
 		ResultKind:                resultByAttackTargetUntargetable,
 		AttackTargetGadgetSpecies: 24660,
-		CMKind:                    cmByHealth, CMValue: 42_000_000,
+		CMKind:                    cmByHealth, CMValue: 40_000_000,
 	}, 17154)
 
 	// Wing 5 — Hall of Chains
@@ -245,10 +248,11 @@ func buildEncounterTable() map[uint16]*encounterDef {
 	}, 23957)
 	add(&encounterDef{
 		Name: "Kaineng Overlook", Category: "strike", Subcategory: "End of Dragons",
-		MainSpecies: []int{24485},
+		// The challenge-mode boss is a distinct species (24266, Minister Li CM, ~42M
+		// health) from the normal-mode boss (24485, ~26M); track both for result and CM.
+		MainSpecies: []int{24485, 24266},
 		ResultKind:  resultByTeamChange,
 		CMKind:      cmByHealth, CMValue: 30_000_000,
-		// MinisterLiChallengeMode (24266) can also be the trigger ID
 	}, 24485, 24266)
 	add(&encounterDef{
 		Name: "Harvest Temple", Category: "strike", Subcategory: "End of Dragons",
