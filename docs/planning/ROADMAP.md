@@ -2,17 +2,6 @@
 
 ## Active Backlog
 
-### Agent: Fix `gorrik setup` Paste Doubling on Windows
-When running `gorrik setup` in a Windows terminal (particularly `cmd.exe`), pasting values
-causes each field to be doubled in the saved `gorrik.toml`. Root cause: some Windows terminals
-deliver pasted text both as a bracketed paste event and as individual keystrokes, so the
-`charmbracelet/huh` TUI receives the input twice.
-
-- Investigate whether setting a specific Windows console mode in `bubbletea` fixes it
-- Fallback option: replace the TUI wizard with plain line-input (`fmt.Scan` / `bufio.Scanner`)
-  on Windows, or add a `--no-tui` flag
-- Until fixed, workaround is to edit `%APPDATA%\gorrik\gorrik.toml` directly
-
 ### Agent + Web: Local Operations UI
 The Windows terminal is a poor management surface, and the tool Gorrik replaces (arcdps Log
 Manager) has a local UI. A `gorrik ui` command would serve a localhost web app that:
@@ -104,6 +93,13 @@ Depends on the local-log/R2 reconciliation from the Local Operations UI work.
 ---
 
 ## Shipped
+
+### `gorrik setup`: plain-prompt wizard (2026-09-02)
+Replaced the `charmbracelet/huh` TUI with plain `bufio` line prompts (`golang.org/x/term`
+for the no-echo secret fields). Fixes the Windows paste-doubling bug — pasted text now goes
+through native terminal line editing, not a bracketed-paste event stream — works over SSH and
+in any terminal, and drops the whole charmbracelet dependency tree (~1.4 MB off the binary).
+Non-interactive invocation errors cleanly pointing at manual `gorrik.toml` editing.
 
 ### Parser: encounter accuracy pass (2026-09-01, PR #8 + #9)
 After a full pass against arcdps Log Manager's parser (EVTCAnalytics), the DB is at 17,907 logs
