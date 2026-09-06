@@ -4,7 +4,17 @@
 
 ### Agent + Web: Local Operations UI
 The Windows terminal is a poor management surface, and the tool Gorrik replaces (arcdps Log
-Manager) has a local UI. A `gorrik ui` command would serve a localhost web app that:
+Manager) has a local UI. The committed end-state is a **native desktop app**, built with
+**Wails v3** (its tray icon and native menu support are first-class in v3, bolt-on in v2).
+Target behaviour:
+
+- launches from an icon, no terminal window
+- configuration set through native menus, not by hand-editing `gorrik.toml`
+- can be set to run on Windows startup (a registry `Run` key toggled from Settings)
+- runs minimised to the system tray; the tray icon opens the full window
+
+The window renders the same React frontend as `web/`. What it shows:
+
 - browses the log history — reads the same Neon DB directly, or via the Vercel API
 - exposes the operations as buttons: Sync / Import / Backfill / edit config, with streamed progress
 - **Local Storage panel** — the feature that actually justifies replacing ALM: show which local
@@ -12,11 +22,15 @@ Manager) has a local UI. A `gorrik ui` command would serve a localhost web app t
   so it never deletes a log not confirmed in both R2 and the DB. ALM cannot do this because ALM
   *is* the local store.
 
-The frontend can reuse `web/` React components. Later polish: wrap it in a Wails shell for a
-native window and native directory dialogs — a ~15 MB binary over the OS webview, not Electron.
-
-A menu-driven TUI (`bubbletea`) was considered as a lighter alternative but is a strict subset of
-this; skip it if the local UI is built.
+**Build order.** The valuable, shell-agnostic core comes first and is worth having on its own:
+the localhost server, the reused `web/` components, and especially the Local Storage
+reconciliation and prune logic. That phase can render in a plain browser tab during development
+(`gorrik ui` → open `localhost:PORT`). The Wails v3 shell — window, tray, native menus,
+startup toggle, native directory dialogs — is a firm second phase, not optional polish. This
+order defers the v3-vs-v2 commitment until v3's release status (beta, hoping for ~Q3 2026, no
+official date) is no longer a guess; a single-user tool can tolerate running on a v3 beta, so
+pin it to a specific tag and upgrade deliberately. The only throwaway piece is "open the
+browser," ~10 lines.
 
 Builds on `gorrik status` / `gorrik sync` (shipped) and the `POST /api/logs/missing` endpoint —
 the prune panel extends that with an R2 HeadObject check per local log.
