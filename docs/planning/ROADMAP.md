@@ -21,21 +21,21 @@ this; skip it if the local UI is built.
 Builds on `gorrik status` / `gorrik sync` (shipped) and the `POST /api/logs/missing` endpoint —
 the prune panel extends that with an R2 HeadObject check per local log.
 
-### Agent: Sign the Windows Binary
+### Agent: Windows Defender false positives — won't sign
 Unsigned `gorrik.exe` builds get false-positived by Windows Defender (heuristics flag the
-Service Control Manager calls behind `gorrik service`, plus the usual static-Go + `net/http`
-pattern). It is non-deterministic build-to-build and has cost real time — on 2026-08-30 a build
-was quarantined repeatedly, downloads blocked, and a folder exclusion was the only way through.
+Service Control Manager calls behind `gorrik service` plus the static-Go + `net/http` pattern),
+non-deterministically build-to-build.
 
-- Get an Authenticode code-signing certificate. An OV cert still gets a SmartScreen reputation
-  ramp; an EV cert clears SmartScreen immediately but is more expensive and needs a hardware
-  token / cloud HSM.
-- Sign in CI (`signtool` / `osslsigncode`) as part of the release build, not by hand.
-- Interim mitigations if signing is deferred: ship a `.zip` (the download is not a PE, so it is
-  not blocked mid-transfer), publish the SHA-256 with each build, and document the folder
-  exclusion. `-trimpath -ldflags="-s -w"` changes the fingerprint but does not reliably help.
-- Also submit false positives to Microsoft (`microsoft.com/wdsi/filesubmission`) — slow, and
-  only fixes one hash at a time.
+**Decision (2026-09-02): not worth an annual code-signing cert for a single-user tool.** The
+working process, cost-free:
+
+- Distribute as a `.zip` (the download is not a PE, so it is not blocked mid-transfer).
+- Publish the SHA-256 with each build; verify with `Get-FileHash` after transfer.
+- Keep a Defender **folder exclusion** for wherever `gorrik.exe` lives (`C:\gorrik`) — once
+  excluded, future builds dropped there are never scanned.
+
+If distribution ever widens beyond one user, revisit: Azure Trusted Signing (~$10/mo, best CI
+integration) or Certum's individual OSS cert (~$120/yr).
 
 ### Web: Character Drill-Down Detail
 The expanded character row on `/players` shows log count, success rate, and top spec. The
